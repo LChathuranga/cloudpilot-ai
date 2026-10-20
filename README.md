@@ -19,6 +19,6 @@ Build and test a safe local mock deployment workflow before connecting any cloud
 
 ## Architecture
 
-The V1.0 architecture baseline and diagrams are in [docs/architecture/v1.0/architecture-diagrams.md](docs/architecture-diagrams.md). They cover the system context, request/approval sequence, deployment lifecycle, security boundaries, module map, and delivery phases.
+The original V1.0 baseline is preserved in [docs/architecture/v1.0/architecture-diagrams.md](docs/architecture/v1.0/architecture-diagrams.md). The current proposed design is [Architecture v1.1](docs/architecture/v1.1/architecture-diagrams.md), which adds a visual node-based workflow editor, AI-generated and editable workflows, and safe import of deployment files such as Windows `.bat` scripts.
 
 **Current design:** V1.1 proposal. The first implementation should still use mock execution; real cloud provisioning is not enabled.
