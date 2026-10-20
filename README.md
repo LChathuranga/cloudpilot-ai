@@ -15,3 +15,10 @@ Build and test a safe local mock deployment workflow before connecting any cloud
 - AWS ECS/Fargate as a later provider target; GCP Cloud Run may follow
 
 **Current status:** repository bootstrap. No cloud resources are provisioned by this project yet.
+
+
+## Architecture
+
+The initial design diagrams are in [docs/architecture-diagrams.md](docs/architecture-diagrams.md). They cover the system context, request/approval sequence, deployment lifecycle, security boundaries, module map, and delivery phases.
+
+**Current milestone:** design and local mock workflow. Real cloud provisioning is not enabled.
