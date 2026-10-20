@@ -19,6 +19,6 @@ Build and test a safe local mock deployment workflow before connecting any cloud
 
 ## Architecture
 
-The initial design diagrams are in [docs/architecture-diagrams.md](docs/architecture-diagrams.md). They cover the system context, request/approval sequence, deployment lifecycle, security boundaries, module map, and delivery phases.
+The V1.0 architecture baseline and diagrams are in [docs/architecture-diagrams.md](docs/architecture-diagrams.md). They cover the system context, request/approval sequence, deployment lifecycle, security boundaries, module map, and delivery phases.
 
-**Current milestone:** design and local mock workflow. Real cloud provisioning is not enabled.
+**Current milestone:** V1.0 design and local mock workflow. Real cloud provisioning is not enabled.
