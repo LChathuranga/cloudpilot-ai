@@ -1,9 +1,10 @@
-# CloudPilot AI — Architecture Diagrams
+# CloudPilot AI — Architecture Diagrams (v1.0)
 
-**Status:** Design v1  
+**Document version:** 1.0  
+**Architecture scope:** CloudPilot AI V1.0 — initial design baseline  
 **Scope:** Local mock deployment MVP first. Real cloud provisioning is explicitly out of scope for this milestone.
 
-These diagrams describe the intended architecture, not a claim that every component has been implemented.
+This document defines the V1.0 architecture baseline only. Later versions may revise or extend it; future delivery phases below are roadmap proposals, not features included in V1.0. These diagrams describe the intended architecture, not a claim that every component has been implemented.
 
 ## 1. System context
 
