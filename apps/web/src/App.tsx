@@ -4,6 +4,8 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
+  ConnectionLineType,
+  MarkerType,
   addEdge,
   useEdgesState,
   useNodesState,
@@ -45,11 +47,11 @@ const initialNodes: Node<WorkflowNodeData>[] = [
 ];
 
 const initialEdges: Edge[] = [
-  { id: "e-trigger-source", source: "trigger", target: "source", animated: true },
-  { id: "e-source-build", source: "source", target: "build", animated: true },
-  { id: "e-build-test", source: "build", target: "test", animated: true },
-  { id: "e-test-approval", source: "test", target: "approval", animated: true },
-  { id: "e-approval-deploy", source: "approval", target: "deploy", animated: true },
+  { id: "e-trigger-source", source: "trigger", target: "source", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
+  { id: "e-source-build", source: "source", target: "build", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
+  { id: "e-build-test", source: "build", target: "test", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
+  { id: "e-test-approval", source: "test", target: "approval", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
+  { id: "e-approval-deploy", source: "approval", target: "deploy", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
 ];
 
 const kindIcon: Record<WorkflowNodeType, string> = {
@@ -113,7 +115,7 @@ export default function App() {
   }), [nodes, edges]);
 
   const onConnect = useCallback((connection: Connection) => {
-    setEdges((current) => addEdge({ ...connection, animated: true }, current));
+    setEdges((current) => addEdge({ ...connection, type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } }, current));
   }, [setEdges]);
 
   function createNode(kind: WorkflowNodeType, position?: { x: number; y: number }) {
@@ -145,7 +147,7 @@ export default function App() {
     event.dataTransfer.dropEffect = "move";
   }
 
-  function handleCanvasDrop(event: React.DragEvent<HTMLDivElement>) {
+  function handleCanvasDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     const kind = event.dataTransfer.getData("application/cloudpilot-node") as WorkflowNodeType;
     if (!nodeCatalog.some((item) => item.kind === kind) || !reactFlowInstance) return;
@@ -278,9 +280,9 @@ export default function App() {
             <button className="button button-primary prompt-submit" type="submit">Draft flow <ArrowRight size={15} /></button>
           </form>
 
-          <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v1</span></div><div className="canvas-toolbar-actions">{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
+          <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v1</span><span className="connect-hint">Connect nodes: drag from the right dot to the left dot</span></div><div className="canvas-toolbar-actions">{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
           <div className="flow-canvas" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
-            <ReactFlow<Node<WorkflowNodeData>, Edge> onInit={setReactFlowInstance} nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_, node) => setSelectedNode(node as Node<WorkflowNodeData>)} onPaneClick={() => setSelectedNode(null)} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
+            <ReactFlow<Node<WorkflowNodeData>, Edge> onInit={setReactFlowInstance} nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} connectionLineType={ConnectionLineType.SmoothStep} connectionLineStyle={{ stroke: "#6978ed", strokeWidth: 2.5 }} defaultEdgeOptions={{ type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" }, style: { stroke: "#8793d8", strokeWidth: 2 } }} onNodeClick={(_, node) => setSelectedNode(node as Node<WorkflowNodeData>)} onPaneClick={() => setSelectedNode(null)} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
               <Background gap={20} size={1} color="#dfe5ee" />
               <Controls position="bottom-left" />
               <MiniMap position="bottom-right" pannable zoomable nodeStrokeWidth={3} />
