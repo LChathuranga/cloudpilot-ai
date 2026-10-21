@@ -1,0 +1,14 @@
+{
+  "name": "cloudpilot-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "pnpm --filter @cloudpilot/web dev",
+    "build": "pnpm --filter @cloudpilot/web build",
+    "typecheck": "pnpm --filter @cloudpilot/web typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
