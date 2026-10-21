@@ -2,7 +2,8 @@ import { app } from "./app.js";
 import { env } from "./config.js";
 import { prisma } from "./db.js";
 
-const server = app.listen(env.PORT, () => {
+const host = env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+const server = app.listen(env.PORT, host, () => {
   console.info(`CloudPilot API listening on port ${env.PORT}`);
 });
 
