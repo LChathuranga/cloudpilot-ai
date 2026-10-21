@@ -57,6 +57,9 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
   if (!graph.nodes.some((node) => node.type === "trigger")) {
     errors.push("Add a Trigger node to define how the workflow starts.");
   }
+  if (graph.nodes.length > 0 && !graph.nodes.some((node) => node.type !== "trigger")) {
+    errors.push("Add at least one action node after the Trigger.");
+  }
 
   for (const node of graph.nodes) {
     const config = node.config;
@@ -126,6 +129,21 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
     edgePairs.add(pair);
     if (ids.has(edge.source) && ids.has(edge.target)) {
       adjacency.set(edge.source, [...(adjacency.get(edge.source) ?? []), edge.target]);
+    }
+  }
+
+  const triggerIds = graph.nodes.filter((node) => node.type === "trigger").map((node) => node.id);
+  const reachable = new Set<string>();
+  const pending = [...triggerIds];
+  while (pending.length) {
+    const current = pending.pop()!;
+    if (reachable.has(current)) continue;
+    reachable.add(current);
+    pending.push(...(adjacency.get(current) ?? []));
+  }
+  for (const node of graph.nodes) {
+    if (node.type !== "trigger" && !reachable.has(node.id)) {
+      errors.push(`Node "${node.label}" is not reachable from a Trigger. Connect it into the workflow.`);
     }
   }
 
