@@ -22,6 +22,7 @@ import {
   Play,
   Plus,
   ShieldCheck,
+  Trash2,
   Workflow,
   X,
 } from "lucide-react";
@@ -31,6 +32,7 @@ type WorkflowNodeData = {
   label: string;
   kind: WorkflowNodeType;
   description: string;
+  importBatchId?: string;
 };
 
 const initialNodes: Node<WorkflowNodeData>[] = [
@@ -111,6 +113,33 @@ export default function App() {
     setNotice("Added a review node. Connect it to the workflow and configure it.");
   }
 
+  function deleteNode(nodeId: string) {
+    const target = nodes.find((node) => node.id === nodeId);
+    if (!target) return;
+    setNodes((current) => current.filter((node) => node.id !== nodeId));
+    setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+    setSelectedNode((current) => current?.id === nodeId ? null : current);
+    setNotice(`Deleted "${target.data.label}" and its connected edges. Review the remaining graph before running.`);
+  }
+
+  function removeImportedNodes() {
+    const importedIds = new Set(nodes.filter((node) => node.data.importBatchId).map((node) => node.id));
+    if (importedIds.size === 0) return;
+    if (!window.confirm(`Remove all ${importedIds.size} nodes imported from deployment files? The original files will not be deleted.`)) return;
+    setNodes((current) => current.filter((node) => !node.data.importBatchId));
+    setEdges((current) => current.filter((edge) => !importedIds.has(edge.source) && !importedIds.has(edge.target)));
+    setSelectedNode((current) => current && importedIds.has(current.id) ? null : current);
+    setNotice(`Removed ${importedIds.size} imported nodes and their connections. Original uploaded files were not changed.`);
+  }
+
+  function clearWorkflow() {
+    if (!window.confirm("Clear the entire workflow canvas? This removes all nodes and connections from the current unsaved graph.")) return;
+    setNodes([]);
+    setEdges([]);
+    setSelectedNode(null);
+    setNotice("Workflow cleared. Add nodes or import a deployment file to start again.");
+  }
+
   function applyPrompt() {
     if (!prompt.trim()) {
       setNotice("Describe the workflow you want first.");
@@ -143,17 +172,19 @@ export default function App() {
       return;
     }
 
+    const importBatchId = `import-batch-${Date.now()}`;
     const importedNodes: Node<WorkflowNodeData>[] = suggestions.map((item, index) => ({
-      id: `import-${Date.now()}-${index}`,
+      id: `${importBatchId}-${index}`,
       position: { x: 80 + index * 230, y: 330 },
       data: {
         label: `${kindIcon[item.kind]} ${item.kind.replace("-", " ")}`,
         kind: item.kind,
         description: `Suggested from: ${item.line.slice(0, 100)}`,
+        importBatchId,
       },
     }));
     const importedEdges: Edge[] = importedNodes.slice(1).map((node, index) => ({
-      id: `import-edge-${Date.now()}-${index}`,
+      id: `${importBatchId}-edge-${index}`,
       source: importedNodes[index].id,
       target: node.id,
       animated: true,
@@ -215,12 +246,12 @@ export default function App() {
 
           <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v1</span></div><div className="canvas-toolbar-actions">{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
           <div className="flow-canvas">
-            <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_, node) => setSelectedNode(node as Node<WorkflowNodeData>)} onPaneClick={() => setSelectedNode(null)} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
+            <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_, node) => setSelectedNode(node as Node<WorkflowNodeData>)} onPaneClick={() => setSelectedNode(null)} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
               <Background gap={20} size={1} color="#dfe5ee" />
               <Controls position="bottom-left" />
               <MiniMap position="bottom-right" pannable zoomable nodeStrokeWidth={3} />
             </ReactFlow>
-            {selectedNode && <div className="node-inspector"><button className="inspector-close" onClick={() => setSelectedNode(null)} aria-label="Close node inspector"><X size={15} /></button><div className="eyebrow">NODE SETTINGS</div><h3>{selectedNode.data.label}</h3><p>{selectedNode.data.description}</p><label htmlFor="node-label">Display name</label><input id="node-label" value={selectedNode.data.label} onChange={(event) => { const label = event.target.value; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, label } } : current); }} /></div>}
+            {selectedNode && <div className="node-inspector"><button className="inspector-close" onClick={() => setSelectedNode(null)} aria-label="Close node inspector"><X size={15} /></button><div className="eyebrow">NODE SETTINGS</div><h3>{selectedNode.data.label}</h3><p>{selectedNode.data.description}</p><label htmlFor="node-label">Display name</label><input id="node-label" value={selectedNode.data.label} onChange={(event) => { const label = event.target.value; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, label } } : current); }} /><button className="button button-danger delete-node-button" onClick={() => deleteNode(selectedNode.id)}><Trash2 size={14} /> Delete node</button></div>}
           </div>
 
           <div className="bottom-panels">
