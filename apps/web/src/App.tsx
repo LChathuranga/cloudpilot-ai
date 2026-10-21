@@ -31,6 +31,9 @@ import {
 import { validateWorkflowGraph, type WorkflowNodeType } from "./workflow/schema";
 
 type WorkflowSnapshot = { nodes: Node<WorkflowNodeData>[]; edges: Edge[] };
+type SavedWorkflowVersion = WorkflowSnapshot & { workflowId: string; name: string; version: number; savedAt: string };
+type SavedWorkflow = { id: string; name: string; versions: SavedWorkflowVersion[] };
+const SAVED_WORKFLOWS_KEY = "cloudpilot-ai:saved-workflows:v1";
 
 type NodeConfig = Record<string, string | boolean>;
 
@@ -168,6 +171,19 @@ export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [prompt, setPrompt] = useState("");
+  const [workflowId, setWorkflowId] = useState(() => `workflow-${Date.now()}`);
+  const [workflowName, setWorkflowName] = useState("My deployment workflow");
+  const [workflowVersion, setWorkflowVersion] = useState(1);
+  const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>(() => {
+    try {
+      const stored = window.localStorage.getItem(SAVED_WORKFLOWS_KEY);
+      const parsed: unknown = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed as SavedWorkflow[] : [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedSavedVersion, setSelectedSavedVersion] = useState("");
   const [selectedNode, setSelectedNode] = useState<Node<WorkflowNodeData> | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
@@ -236,9 +252,9 @@ export default function App() {
   }
 
   const graphErrors = useMemo(() => validateWorkflowGraph({
-    id: "cloudpilot-workflow",
-    name: "My deployment workflow",
-    version: 1,
+    id: workflowId,
+    name: workflowName,
+    version: workflowVersion,
     nodes: nodes.map((node) => ({
       id: node.id,
       type: node.data.kind,
@@ -246,11 +262,38 @@ export default function App() {
       config: node.data.config,
     })),
     edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target })),
-  }), [nodes, edges]);
+  }), [nodes, edges, workflowId, workflowName, workflowVersion]);
 
   const onConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target) {
+      setNotice("A connection must have both a source and a target node.");
+      return;
+    }
+    if (connection.source === connection.target) {
+      setNotice("A node cannot connect to itself.");
+      return;
+    }
+    if (edges.some((edge) => edge.source === connection.source && edge.target === connection.target)) {
+      setNotice("That connection already exists.");
+      return;
+    }
+    const adjacency = new Map<string, string[]>();
+    for (const edge of edges) adjacency.set(edge.source, [...(adjacency.get(edge.source) ?? []), edge.target]);
+    const stack = [connection.target];
+    const visited = new Set<string>();
+    while (stack.length) {
+      const current = stack.pop()!;
+      if (current === connection.source) {
+        setNotice("That connection would create a cycle. Cycles are not supported in this MVP.");
+        return;
+      }
+      if (visited.has(current)) continue;
+      visited.add(current);
+      stack.push(...(adjacency.get(current) ?? []));
+    }
     setEdges((current) => addEdge({ ...connection, type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } }, current));
-  }, [setEdges]);
+    setNotice("Connection added.");
+  }, [edges, setEdges]);
 
   function createNode(kind: WorkflowNodeType, position?: { x: number; y: number }) {
     const definition = nodeCatalog.find((item) => item.kind === kind);
@@ -383,6 +426,86 @@ export default function App() {
     setNotice(`Analyzed ${file.name}: suggested ${suggestions.length} nodes. The file was read as text only; it was not executed. Review every suggestion before use.`);
   }
 
+  function persistSavedWorkflows(next: SavedWorkflow[]) {
+    try {
+      window.localStorage.setItem(SAVED_WORKFLOWS_KEY, JSON.stringify(next));
+      setSavedWorkflows(next);
+      return true;
+    } catch {
+      setNotice("Could not save this workflow in browser storage. Check available storage space or browser privacy settings.");
+      return false;
+    }
+  }
+
+  function saveWorkflow() {
+    const existing = savedWorkflows.find((workflow) => workflow.id === workflowId);
+    const nextVersion = (existing?.versions.reduce((max, item) => Math.max(max, item.version), 0) ?? 0) + 1;
+    const snapshot: SavedWorkflowVersion = {
+      workflowId,
+      name: workflowName.trim() || "Untitled workflow",
+      version: nextVersion,
+      savedAt: new Date().toISOString(),
+      nodes: nodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } })),
+      edges: edges.map((edge) => ({ ...edge })),
+    };
+    const next: SavedWorkflow[] = existing
+      ? savedWorkflows.map((workflow) => workflow.id === workflowId
+          ? { ...workflow, name: snapshot.name, versions: [...workflow.versions, snapshot] }
+          : workflow)
+      : [...savedWorkflows, { id: workflowId, name: snapshot.name, versions: [snapshot] }];
+    if (!persistSavedWorkflows(next)) return;
+    setWorkflowName(snapshot.name);
+    setWorkflowVersion(nextVersion);
+    setSelectedSavedVersion(`${workflowId}:${nextVersion}`);
+    setNotice(`Saved "${snapshot.name}" as version ${nextVersion}. This is a local browser save; no cloud commands were executed.`);
+  }
+
+  function openSavedWorkflow() {
+    const [savedId, versionText] = selectedSavedVersion.split(":");
+    const saved = savedWorkflows.find((workflow) => workflow.id === savedId);
+    const snapshot = saved?.versions.find((item) => item.version === Number(versionText));
+    if (!snapshot) {
+      setNotice("Choose a saved workflow version to open.");
+      return;
+    }
+    skipHistoryCapture.current = true;
+    undoStack.current = [];
+    redoStack.current = [];
+    const restoredNodes = snapshot.nodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } }));
+    const restoredEdges = snapshot.edges.map((edge) => ({ ...edge }));
+    lastSnapshot.current = { nodes: restoredNodes, edges: restoredEdges };
+    setNodes(restoredNodes);
+    setEdges(restoredEdges);
+    setWorkflowId(snapshot.workflowId);
+    setWorkflowName(snapshot.name);
+    setWorkflowVersion(snapshot.version);
+    setSelectedNode(null);
+    setSelectedEdgeId(null);
+    setCanUndo(false);
+    setCanRedo(false);
+    setNotice(`Opened "${snapshot.name}" version ${snapshot.version}.`);
+  }
+
+  function startNewWorkflow() {
+    if (!window.confirm("Start a new workflow? Save your current work first if you want to keep it.")) return;
+    const nextNodes = initialNodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } }));
+    const nextEdges = initialEdges.map((edge) => ({ ...edge }));
+    skipHistoryCapture.current = true;
+    undoStack.current = [];
+    redoStack.current = [];
+    lastSnapshot.current = { nodes: nextNodes, edges: nextEdges };
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    setWorkflowId(`workflow-${Date.now()}`);
+    setWorkflowName("My deployment workflow");
+    setWorkflowVersion(1);
+    setSelectedNode(null);
+    setSelectedEdgeId(null);
+    setCanUndo(false);
+    setCanRedo(false);
+    setNotice("Started a new workflow. Save it to keep a local version.");
+  }
+
   function runMock() {
     if (graphErrors.length > 0) {
       setNotice(`Cannot simulate yet: ${graphErrors[0]}`);
@@ -400,8 +523,8 @@ export default function App() {
           <span className="brand-mark"><Cloud size={20} /></span>
           <span>cloudpilot<span className="brand-ai">.ai</span></span>
         </a>
-        <div className="topbar-center"><span className="status-dot" /> Local workspace <span className="topbar-divider">/</span> Untitled workflow</div>
-        <div className="topbar-actions"><span className="safe-pill"><ShieldCheck size={14} /> Safe mode</span><button className="button button-primary" onClick={runMock} disabled={isRunning}><Play size={15} /> {isRunning ? "Running…" : "Run mock"}</button></div>
+        <div className="topbar-center"><span className="status-dot" /> Local workspace <span className="topbar-divider">/</span> {workflowName} <span className="topbar-divider">/</span> v{workflowVersion}</div>
+        <div className="topbar-actions"><span className="safe-pill"><ShieldCheck size={14} /> Safe mode</span><button className="button button-primary" onClick={runMock} disabled={isRunning || graphErrors.length > 0} title={graphErrors.length ? "Fix validation issues before running" : "Validate workflow graph (mock only)"}><Play size={15} /> {isRunning ? "Running…" : "Run mock"}</button></div>
       </header>
 
       <section className="workspace">
@@ -417,7 +540,7 @@ export default function App() {
 
         <section className="main-panel">
           <div className="page-heading">
-            <div><div className="eyebrow">WORKFLOW DESIGNER <span>•</span> MVP PREVIEW</div><h1>Build your deployment flow</h1><p>Describe it, shape it visually, then validate before running.</p></div>
+            <div><div className="eyebrow">WORKFLOW DESIGNER <span>•</span> MVP PREVIEW</div><h1>Build your deployment flow</h1><p>Describe it, shape it visually, then validate before running.</p><div className="workflow-name-control"><label htmlFor="workflow-name">Workflow name</label><input id="workflow-name" maxLength={120} value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} /></div></div>
           </div>
 
           <form className="prompt-panel" onSubmit={(event) => { event.preventDefault(); applyPrompt(); }}>
@@ -426,7 +549,7 @@ export default function App() {
             <button className="button button-primary prompt-submit" type="submit">Draft flow <ArrowRight size={15} /></button>
           </form>
 
-          <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v1</span><span className="connect-hint">Connect: drag between dots · Remove: click a line, then press Delete or use the button</span></div><div className="canvas-toolbar-actions"><button type="button" className="button button-secondary button-compact" onClick={undoWorkflowChange} disabled={!canUndo} title="Undo the last workflow change">Undo</button><button type="button" className="button button-secondary button-compact" onClick={redoWorkflowChange} disabled={!canRedo} title="Redo the last undone change">Redo</button>{selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId) && <button className="button button-danger button-compact" onClick={() => deleteConnection(selectedEdgeId)}><Trash2 size={13} /> Delete connection</button>}{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
+          <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v{workflowVersion}</span><span className="connect-hint">Connect: drag between dots · Remove: click a line, then press Delete or use the button</span></div><div className="canvas-toolbar-actions"><button type="button" className="button button-primary button-compact" onClick={saveWorkflow}>Save workflow</button><select className="saved-version-select" aria-label="Saved workflow versions" value={selectedSavedVersion} onChange={(event) => setSelectedSavedVersion(event.target.value)}><option value="">Open saved version…</option>{savedWorkflows.flatMap((workflow) => workflow.versions.map((version) => ({ key: `${workflow.id}:${version.version}`, label: `${workflow.name} · v${version.version} · ${new Date(version.savedAt).toLocaleString()}` }))).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select><button type="button" className="button button-secondary button-compact" onClick={openSavedWorkflow} disabled={!selectedSavedVersion}>Open</button><button type="button" className="button button-secondary button-compact" onClick={startNewWorkflow}>New</button><button type="button" className="button button-secondary button-compact" onClick={undoWorkflowChange} disabled={!canUndo} title="Undo the last workflow change">Undo</button><button type="button" className="button button-secondary button-compact" onClick={redoWorkflowChange} disabled={!canRedo} title="Redo the last undone change">Redo</button>{selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId) && <button className="button button-danger button-compact" onClick={() => deleteConnection(selectedEdgeId)}><Trash2 size={13} /> Delete connection</button>}{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
           <div className="flow-canvas" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
             <ReactFlow<Node<WorkflowNodeData>, Edge> onInit={setReactFlowInstance} nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} isConnectable={true} connectionLineType={ConnectionLineType.SmoothStep} connectionLineStyle={{ stroke: "#6978ed", strokeWidth: 2.5 }} defaultEdgeOptions={{ type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" }, style: { stroke: "#8793d8", strokeWidth: 2 } }} onNodeClick={(_, node) => { setSelectedNode(node as Node<WorkflowNodeData>); setSelectedEdgeId(null); }} onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNode(null); }} onPaneClick={() => { setSelectedNode(null); setSelectedEdgeId(null); }} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
               <Background gap={20} size={1} color="#dfe5ee" />
@@ -438,7 +561,7 @@ export default function App() {
 
           <div className="bottom-panels">
             <section className="status-panel"><div className="panel-heading"><Activity size={16} /><b>Activity & validation</b><span className={graphErrors.length ? "issue-count" : "success-count"}>{graphErrors.length ? `${graphErrors.length} issues` : "No issues"}</span></div>{graphErrors.length ? graphErrors.map((error) => <p className="validation-error" key={error}>{error}</p>) : <p className="status-message"><CheckCircle2 size={15} /> {notice}</p>}</section>
-            <section className="run-panel"><div className="panel-heading"><Play size={15} /><b>Execution</b><span className="mock-pill">MOCK ONLY</span></div><p>No cloud provider is connected. Run mock validates the graph only; it does not run shell commands or provision infrastructure.</p></section>
+            <section className="run-panel"><div className="panel-heading"><Play size={15} /><b>Execution</b><span className="mock-pill">MOCK ONLY</span></div><p>{graphErrors.length ? "Fix the validation issues before Run mock becomes available. Saving drafts is still allowed." : "Workflow passed validation. Run mock checks the graph only; it does not run shell commands or provision infrastructure."} Saved versions stay in this browser on this device.</p></section>
           </div>
           <footer className="footer-note">CloudPilot AI <span>•</span> Early MVP prototype <span>•</span> Real deployment is disabled</footer>
         </section>
