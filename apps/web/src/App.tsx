@@ -20,7 +20,6 @@ import {
   FileUp,
   GitBranch,
   Play,
-  Plus,
   ShieldCheck,
   Trash2,
   Workflow,
@@ -64,6 +63,18 @@ const kindIcon: Record<WorkflowNodeType, string> = {
   rollback: "↶",
 };
 
+const nodeCatalog: { kind: WorkflowNodeType; label: string; description: string; icon: string; iconClass: string }[] = [
+  { kind: "trigger", label: "Trigger", description: "Start workflow", icon: "◉", iconClass: "trigger-icon" },
+  { kind: "source", label: "Source", description: "Checkout repository", icon: "⑂", iconClass: "source-icon" },
+  { kind: "build", label: "Build", description: "Build application", icon: "▣", iconClass: "build-icon" },
+  { kind: "test", label: "Test", description: "Run test suite", icon: "✓", iconClass: "test-icon" },
+  { kind: "security-scan", label: "Security scan", description: "Check known risks", icon: "⌁", iconClass: "scan-icon" },
+  { kind: "approval", label: "Approval", description: "Human checkpoint", icon: "◎", iconClass: "approval-icon" },
+  { kind: "deploy", label: "Deploy", description: "Mock deployment", icon: "⇧", iconClass: "deploy-icon" },
+  { kind: "health-check", label: "Health check", description: "Verify service health", icon: "♥", iconClass: "test-icon" },
+  { kind: "rollback", label: "Rollback", description: "Recovery step", icon: "↶", iconClass: "approval-icon" },
+];
+
 function inferNodeType(line: string): WorkflowNodeType | null {
   const command = line.trim().toLowerCase();
   if (!command || command.startsWith("rem ") || command.startsWith("::")) return null;
@@ -103,14 +114,22 @@ export default function App() {
     setEdges((current) => addEdge({ ...connection, animated: true }, current));
   }, [setEdges]);
 
-  function createNode() {
-    const id = `approval-${Date.now()}`;
+  function createNode(kind: WorkflowNodeType) {
+    const definition = nodeCatalog.find((item) => item.kind === kind);
+    if (!definition) return;
+    const id = `node-${kind}-${Date.now()}`;
     setNodes((current) => [...current, {
       id,
-      position: { x: 420, y: 330 + current.length * 24 },
-      data: { label: "Review step", kind: "approval" as WorkflowNodeType, description: "Configure this workflow step" },
+      position: { x: 260 + (current.length % 3) * 190, y: 300 + Math.floor(current.length / 3) * 90 },
+      data: {
+        label: definition.label,
+        kind: definition.kind,
+        description: definition.kind === "deploy"
+          ? "Simulate deployment; no cloud changes"
+          : definition.description,
+      },
     }]);
-    setNotice("Added a review node. Connect it to the workflow and configure it.");
+    setNotice(`Added ${definition.label}. Connect it to the workflow and configure it.`);
   }
 
   function deleteNode(nodeId: string) {
@@ -221,21 +240,14 @@ export default function App() {
           <button className="nav-item active"><Workflow size={17} /> Workflow editor</button>
           <button className="nav-item" onClick={() => fileInput.current?.click()}><FileUp size={17} /> Import deployment file</button>
           <input ref={fileInput} type="file" accept=".bat,.cmd,.ps1,.sh,.yml,.yaml" hidden onChange={(event) => { void importScript(event.target.files?.[0]); event.currentTarget.value = ""; }} />
-          <div className="sidebar-label node-label">NODE CATALOG <button className="icon-button" onClick={createNode} title="Add a review node"><Plus size={14} /></button></div>
-          <div className="catalog-item"><span className="catalog-icon trigger-icon">◉</span><span><b>Trigger</b><small>Start workflow</small></span></div>
-          <div className="catalog-item"><span className="catalog-icon source-icon">⑂</span><span><b>Source</b><small>Checkout repository</small></span></div>
-          <div className="catalog-item"><span className="catalog-icon build-icon">▣</span><span><b>Build</b><small>Build application</small></span></div>
-          <div className="catalog-item"><span className="catalog-icon test-icon">✓</span><span><b>Test</b><small>Run test suite</small></span></div>
-          <div className="catalog-item"><span className="catalog-icon scan-icon"><ShieldCheck size={15} /></span><span><b>Security scan</b><small>Check known risks</small></span></div>
-          <div className="catalog-item"><span className="catalog-icon approval-icon">◎</span><span><b>Approval</b><small>Human checkpoint</small></span></div>
-          <div className="catalog-item"><span className="catalog-icon deploy-icon"><Cloud size={15} /></span><span><b>Deploy</b><small>Mock deployment</small></span></div>
+          <div className="sidebar-label node-label">NODE CATALOG</div>
+          {nodeCatalog.map((item) => <button key={item.kind} type="button" className="catalog-item" onClick={() => createNode(item.kind)} title={`Add ${item.label} node to the canvas`}><span className={`catalog-icon ${item.iconClass}`}>{item.icon}</span><span><b>{item.label}</b><small>{item.description}</small></span></button>)}
           <div className="sidebar-bottom"><ShieldCheck size={16} /><span><b>Safety first</b><small>Imported scripts are never executed.</small></span></div>
         </aside>
 
         <section className="main-panel">
           <div className="page-heading">
             <div><div className="eyebrow">WORKFLOW DESIGNER <span>•</span> MVP PREVIEW</div><h1>Build your deployment flow</h1><p>Describe it, shape it visually, then validate before running.</p></div>
-            <button className="button button-secondary" onClick={createNode}><Plus size={15} /> Add node</button>
           </div>
 
           <form className="prompt-panel" onSubmit={(event) => { event.preventDefault(); applyPrompt(); }}>
