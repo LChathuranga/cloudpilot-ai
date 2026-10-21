@@ -36,12 +36,12 @@ type WorkflowNodeData = {
 };
 
 const initialNodes: Node<WorkflowNodeData>[] = [
-  { id: "trigger", type: "input", position: { x: 60, y: 150 }, data: { label: "Start", kind: "trigger", description: "Workflow entry point" } },
-  { id: "source", position: { x: 290, y: 150 }, data: { label: "Checkout source", kind: "source", description: "Prepare source code" } },
-  { id: "build", position: { x: 520, y: 150 }, data: { label: "Build application", kind: "build", description: "Build the project artifact" } },
-  { id: "test", position: { x: 750, y: 150 }, data: { label: "Run tests", kind: "test", description: "Run the configured test suite" } },
-  { id: "approval", position: { x: 980, y: 150 }, data: { label: "Manual approval", kind: "approval", description: "Human review before deployment" } },
-  { id: "deploy", type: "output", position: { x: 1210, y: 150 }, data: { label: "Deploy (mock)", kind: "deploy", description: "Simulate deployment; no cloud changes" } },
+  { id: "trigger", type: "input", className: "workflow-node workflow-node-trigger", position: { x: 60, y: 150 }, data: { label: "Start", kind: "trigger", description: "Workflow entry point" } },
+  { id: "source", className: "workflow-node workflow-node-source", position: { x: 290, y: 150 }, data: { label: "Checkout source", kind: "source", description: "Prepare source code" } },
+  { id: "build", className: "workflow-node workflow-node-build", position: { x: 520, y: 150 }, data: { label: "Build application", kind: "build", description: "Build the project artifact" } },
+  { id: "test", className: "workflow-node workflow-node-test", position: { x: 750, y: 150 }, data: { label: "Run tests", kind: "test", description: "Run the configured test suite" } },
+  { id: "approval", className: "workflow-node workflow-node-approval", position: { x: 980, y: 150 }, data: { label: "Manual approval", kind: "approval", description: "Human review before deployment" } },
+  { id: "deploy", type: "output", className: "workflow-node workflow-node-deploy", position: { x: 1210, y: 150 }, data: { label: "Deploy (mock)", kind: "deploy", description: "Simulate deployment; no cloud changes" } },
 ];
 
 const initialEdges: Edge[] = [
@@ -122,6 +122,7 @@ export default function App() {
     const id = `node-${kind}-${Date.now()}`;
     setNodes((current) => [...current, {
       id,
+      className: `workflow-node workflow-node-${kind}`,
       position: position ?? { x: 260 + (current.length % 3) * 190, y: 300 + Math.floor(current.length / 3) * 90 },
       data: {
         label: definition.label,
@@ -214,6 +215,7 @@ export default function App() {
     const importBatchId = `import-batch-${Date.now()}`;
     const importedNodes: Node<WorkflowNodeData>[] = suggestions.map((item, index) => ({
       id: `${importBatchId}-${index}`,
+      className: `workflow-node workflow-node-${item.kind}`,
       position: { x: 80 + index * 230, y: 330 },
       data: {
         label: `${kindIcon[item.kind]} ${item.kind.replace("-", " ")}`,
