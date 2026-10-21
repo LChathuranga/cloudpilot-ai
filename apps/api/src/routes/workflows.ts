@@ -1,4 +1,5 @@
 import { Router, type Request } from "express";
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -43,15 +44,18 @@ workflowsRouter.post("/", async (req, res, next) => {
       res.status(400).json({ error: { code: "REQUEST_INVALID", message: "Workflow payload is invalid.", details: body.error.issues } });
       return;
     }
-    const result = validateWorkflow({ ...body.data.graph, name: body.data.name, version: 1 });
+    const workflowId = randomUUID();
+    const graph = { ...body.data.graph, id: workflowId, name: body.data.name, version: 1 };
+    const result = validateWorkflow(graph);
     const created = await prisma.workflow.create({
       data: {
+        id: workflowId,
         ownerId: userId(req),
         name: body.data.name,
         latestVersion: 1,
         versions: { create: {
           version: 1,
-          graph: jsonValue({ ...body.data.graph, name: body.data.name, version: 1 }),
+          graph: jsonValue(graph),
           ...(body.data.editorState === undefined ? {} : { editorState: jsonValue(body.data.editorState) }),
           validationErrors: jsonValue(result.issues)
         } },
