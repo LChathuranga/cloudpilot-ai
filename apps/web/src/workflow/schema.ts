@@ -45,6 +45,7 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
   const ids = new Set(graph.nodes.map((node) => node.id));
   const errors: string[] = [];
   const edgePairs = new Set<string>();
+  const edgeIds = new Set<string>();
   const adjacency = new Map<string, string[]>();
 
   if (ids.size !== graph.nodes.length) {
@@ -112,6 +113,8 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
   }
 
   for (const edge of graph.edges) {
+    if (edgeIds.has(edge.id)) errors.push("Every connection must have a unique ID.");
+    edgeIds.add(edge.id);
     if (!ids.has(edge.source)) errors.push(`Connection ${edge.id} has a missing source node.`);
     if (!ids.has(edge.target)) errors.push(`Connection ${edge.id} has a missing target node.`);
     if (edge.source === edge.target) {
