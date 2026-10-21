@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
 import {
   Background,
   Controls,
@@ -134,12 +134,12 @@ export default function App() {
     setNotice(`Added ${definition.label}. Connect it to the workflow and configure it.`);
   }
 
-  function handleCatalogDragStart(event: React.DragEvent<HTMLButtonElement>, kind: WorkflowNodeType) {
+  function handleCatalogDragStart(event: DragEvent<HTMLButtonElement>, kind: WorkflowNodeType) {
     event.dataTransfer.setData("application/cloudpilot-node", kind);
     event.dataTransfer.effectAllowed = "move";
   }
 
-  function handleCanvasDragOver(event: React.DragEvent<HTMLDivElement>) {
+  function handleCanvasDragOver(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }
