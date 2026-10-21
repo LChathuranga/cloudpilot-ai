@@ -10,6 +10,7 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import {
   Activity,
@@ -95,6 +96,7 @@ export default function App() {
   const [selectedNode, setSelectedNode] = useState<Node<WorkflowNodeData> | null>(null);
   const [notice, setNotice] = useState("Ready to design. This prototype only simulates workflow execution.");
   const [isRunning, setIsRunning] = useState(false);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const graphErrors = useMemo(() => validateWorkflowGraph({
@@ -114,13 +116,13 @@ export default function App() {
     setEdges((current) => addEdge({ ...connection, animated: true }, current));
   }, [setEdges]);
 
-  function createNode(kind: WorkflowNodeType) {
+  function createNode(kind: WorkflowNodeType, position?: { x: number; y: number }) {
     const definition = nodeCatalog.find((item) => item.kind === kind);
     if (!definition) return;
     const id = `node-${kind}-${Date.now()}`;
     setNodes((current) => [...current, {
       id,
-      position: { x: 260 + (current.length % 3) * 190, y: 300 + Math.floor(current.length / 3) * 90 },
+      position: position ?? { x: 260 + (current.length % 3) * 190, y: 300 + Math.floor(current.length / 3) * 90 },
       data: {
         label: definition.label,
         kind: definition.kind,
@@ -130,6 +132,24 @@ export default function App() {
       },
     }]);
     setNotice(`Added ${definition.label}. Connect it to the workflow and configure it.`);
+  }
+
+  function handleCatalogDragStart(event: React.DragEvent<HTMLButtonElement>, kind: WorkflowNodeType) {
+    event.dataTransfer.setData("application/cloudpilot-node", kind);
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleCanvasDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function handleCanvasDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const kind = event.dataTransfer.getData("application/cloudpilot-node") as WorkflowNodeType;
+    if (!nodeCatalog.some((item) => item.kind === kind) || !reactFlowInstance) return;
+    const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    createNode(kind, position);
   }
 
   function deleteNode(nodeId: string) {
@@ -241,7 +261,7 @@ export default function App() {
           <button className="nav-item" onClick={() => fileInput.current?.click()}><FileUp size={17} /> Import deployment file</button>
           <input ref={fileInput} type="file" accept=".bat,.cmd,.ps1,.sh,.yml,.yaml" hidden onChange={(event) => { void importScript(event.target.files?.[0]); event.currentTarget.value = ""; }} />
           <div className="sidebar-label node-label">NODE CATALOG</div>
-          {nodeCatalog.map((item) => <button key={item.kind} type="button" className="catalog-item" onClick={() => createNode(item.kind)} title={`Add ${item.label} node to the canvas`}><span className={`catalog-icon ${item.iconClass}`}>{item.icon}</span><span><b>{item.label}</b><small>{item.description}</small></span></button>)}
+          {nodeCatalog.map((item) => <button key={item.kind} type="button" className="catalog-item" draggable onDragStart={(event) => handleCatalogDragStart(event, item.kind)} onClick={() => createNode(item.kind)} title={`Drag ${item.label} onto the canvas, or click to add it`}><span className={`catalog-icon ${item.iconClass}`}>{item.icon}</span><span><b>{item.label}</b><small>{item.description}</small></span></button>)}
           <div className="sidebar-bottom"><ShieldCheck size={16} /><span><b>Safety first</b><small>Imported scripts are never executed.</small></span></div>
         </aside>
 
@@ -257,8 +277,8 @@ export default function App() {
           </form>
 
           <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v1</span></div><div className="canvas-toolbar-actions">{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
-          <div className="flow-canvas">
-            <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_, node) => setSelectedNode(node as Node<WorkflowNodeData>)} onPaneClick={() => setSelectedNode(null)} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
+          <div className="flow-canvas" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
+            <ReactFlow onInit={setReactFlowInstance} nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_, node) => setSelectedNode(node as Node<WorkflowNodeData>)} onPaneClick={() => setSelectedNode(null)} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
               <Background gap={20} size={1} color="#dfe5ee" />
               <Controls position="bottom-left" />
               <MiniMap position="bottom-right" pannable zoomable nodeStrokeWidth={3} />
