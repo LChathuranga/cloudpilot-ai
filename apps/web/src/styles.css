@@ -3,3 +3,26 @@
 @media(max-width:700px){.canvas-toolbar{align-items:flex-start;gap:10px;flex-direction:column}.canvas-toolbar-actions{justify-content:flex-start;width:100%}}
 
 .catalog-item{width:100%;border:0;background:transparent;text-align:left;cursor:pointer;color:inherit;font:inherit}.catalog-item:hover{background:#f2f4ff}.catalog-item:focus-visible{outline:2px solid #6978ed;outline-offset:-2px}
+
+/* Workflow node visual language: colour identifies node purpose, shape stays consistent. */
+.react-flow__node.workflow-node{min-width:158px;padding:15px 14px;border-width:1px;border-left-width:4px;border-radius:10px;box-shadow:0 5px 14px #26385810;transition:box-shadow .15s ease,transform .15s ease}
+.react-flow__node.workflow-node:hover{box-shadow:0 7px 18px #26385818}
+.react-flow__node.workflow-node.selected{box-shadow:0 0 0 3px #6978ed25,0 5px 14px #26385812}
+.react-flow__node.workflow-node-trigger{background:#eaf8f2;border-color:#a9dfc8;border-left-color:#2c9d70;color:#176d4d;border-radius:999px}
+.react-flow__node.workflow-node-source{background:#eaf2ff;border-color:#c5d8ff;border-left-color:#4679d8;color:#2859a6}
+.react-flow__node.workflow-node-build{background:#f2edff;border-color:#d9ccff;border-left-color:#8262cb;color:#6544a8}
+.react-flow__node.workflow-node-test{background:#eaf8f2;border-color:#bde9d2;border-left-color:#2d9c73;color:#217750}
+.react-flow__node.workflow-node-security-scan{background:#fff4df;border-color:#f2d69b;border-left-color:#bd8423;color:#8e5e0d}
+.react-flow__node.workflow-node-approval{background:#fcecf6;border-color:#f1c9df;border-left-color:#c05b98;color:#963b73}
+.react-flow__node.workflow-node-deploy{background:#e9f0ff;border-color:#c7d5ff;border-left-color:#4f62d7;color:#3549b2;border-radius:10px}
+.react-flow__node.workflow-node-health-check{background:#e3f7fa;border-color:#b7e7ed;border-left-color:#208b9c;color:#176b78}
+.react-flow__node.workflow-node-rollback{background:#fff0ed;border-color:#f2c6bd;border-left-color:#c85a46;color:#a33f30}
+.react-flow__node.workflow-node-trigger .react-flow__handle{background:#2c9d70}
+.react-flow__node.workflow-node-source .react-flow__handle{background:#4679d8}
+.react-flow__node.workflow-node-build .react-flow__handle{background:#8262cb}
+.react-flow__node.workflow-node-test .react-flow__handle{background:#2d9c73}
+.react-flow__node.workflow-node-security-scan .react-flow__handle{background:#bd8423}
+.react-flow__node.workflow-node-approval .react-flow__handle{background:#c05b98}
+.react-flow__node.workflow-node-deploy .react-flow__handle{background:#4f62d7}
+.react-flow__node.workflow-node-health-check .react-flow__handle{background:#208b9c}
+.react-flow__node.workflow-node-rollback .react-flow__handle{background:#c85a46}
