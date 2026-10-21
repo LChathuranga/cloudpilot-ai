@@ -39,3 +39,17 @@
 .react-flow__edge.animated path{stroke-dasharray:7 4}
 .react-flow__edge.selected .react-flow__edge-path{stroke:#4f62e8;stroke-width:3}
 @media(max-width:700px){.connect-hint{white-space:normal;line-height:1.4;margin:5px 0 0}.canvas-title{flex-wrap:wrap}}
+
+
+/* Node-specific settings panel */
+.node-inspector{max-height:calc(100% - 24px);overflow-y:auto}
+.settings-divider{height:1px;background:#e8ecf3;margin:14px 0 11px}
+.settings-section-title{font-size:9px;letter-spacing:1px;color:#6978d9;font-weight:800;margin-bottom:12px}
+.setting-field{margin:0 0 12px}
+.setting-field>label{display:block;font-size:10px;font-weight:700;color:#344158;margin-bottom:4px}
+.setting-field>small{display:block;color:#8b95a6;font-size:9px;line-height:1.45;margin-bottom:6px}
+.setting-field input:not([type=checkbox]),.setting-field textarea,.setting-field select{display:block;width:100%;min-width:0;border:1px solid #dfe5ed;border-radius:6px;padding:8px;font:inherit;font-size:10px;color:#26334a;background:#fff;outline-color:#6978ed}
+.setting-field textarea{resize:vertical;line-height:1.45}
+.setting-field select{cursor:pointer}
+.setting-checkbox{display:flex!important;align-items:center;gap:7px;margin-top:7px;font-weight:500!important}
+.setting-checkbox input{accent-color:#596be8}
