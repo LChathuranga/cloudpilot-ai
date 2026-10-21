@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import {
   Background,
   Controls,
@@ -29,6 +29,8 @@ import {
   X,
 } from "lucide-react";
 import { validateWorkflowGraph, type WorkflowNodeType } from "./workflow/schema";
+
+type WorkflowSnapshot = { nodes: Node<WorkflowNodeData>[]; edges: Edge[] };
 
 type WorkflowNodeData = {
   label: string;
@@ -97,10 +99,70 @@ export default function App() {
   const [prompt, setPrompt] = useState("");
   const [selectedNode, setSelectedNode] = useState<Node<WorkflowNodeData> | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const undoStack = useRef<WorkflowSnapshot[]>([]);
+  const redoStack = useRef<WorkflowSnapshot[]>([]);
+  const lastSnapshot = useRef<WorkflowSnapshot>({ nodes: initialNodes, edges: initialEdges });
+  const skipHistoryCapture = useRef(false);
   const [notice, setNotice] = useState("Ready to design. This prototype only simulates workflow execution.");
   const [isRunning, setIsRunning] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<Node<WorkflowNodeData>, Edge> | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+
+  useEffect(() => {
+    const currentSnapshot: WorkflowSnapshot = { nodes, edges };
+    const currentKey = JSON.stringify(currentSnapshot);
+    const previousKey = JSON.stringify(lastSnapshot.current);
+
+    if (currentKey === previousKey) return;
+
+    if (skipHistoryCapture.current) {
+      skipHistoryCapture.current = false;
+      lastSnapshot.current = currentSnapshot;
+      setCanUndo(undoStack.current.length > 0);
+      setCanRedo(redoStack.current.length > 0);
+      return;
+    }
+
+    undoStack.current.push(lastSnapshot.current);
+    if (undoStack.current.length > 100) undoStack.current.shift();
+    redoStack.current = [];
+    lastSnapshot.current = currentSnapshot;
+    setCanUndo(undoStack.current.length > 0);
+    setCanRedo(false);
+  }, [nodes, edges]);
+
+  function undoWorkflowChange() {
+    const previous = undoStack.current.pop();
+    if (!previous) return;
+    redoStack.current.push({ nodes, edges });
+    skipHistoryCapture.current = true;
+    lastSnapshot.current = previous;
+    setNodes(previous.nodes);
+    setEdges(previous.edges);
+    setSelectedNode(null);
+    setSelectedEdgeId(null);
+    setCanUndo(undoStack.current.length > 0);
+    setCanRedo(true);
+    setNotice("Undid the last workflow change.");
+  }
+
+  function redoWorkflowChange() {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push({ nodes, edges });
+    skipHistoryCapture.current = true;
+    lastSnapshot.current = next;
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setSelectedNode(null);
+    setSelectedEdgeId(null);
+    setCanUndo(true);
+    setCanRedo(redoStack.current.length > 0);
+    setNotice("Redid the workflow change.");
+  }
 
   const graphErrors = useMemo(() => validateWorkflowGraph({
     id: "cloudpilot-workflow",
@@ -291,7 +353,7 @@ export default function App() {
             <button className="button button-primary prompt-submit" type="submit">Draft flow <ArrowRight size={15} /></button>
           </form>
 
-          <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v1</span><span className="connect-hint">Connect: drag between dots · Remove: click a line, then press Delete or use the button</span></div><div className="canvas-toolbar-actions">{selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId) && <button className="button button-danger button-compact" onClick={() => deleteConnection(selectedEdgeId)}><Trash2 size={13} /> Delete connection</button>}{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
+          <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v1</span><span className="connect-hint">Connect: drag between dots · Remove: click a line, then press Delete or use the button</span></div><div className="canvas-toolbar-actions"><button type="button" className="button button-secondary button-compact" onClick={undoWorkflowChange} disabled={!canUndo} title="Undo the last workflow change">Undo</button><button type="button" className="button button-secondary button-compact" onClick={redoWorkflowChange} disabled={!canRedo} title="Redo the last undone change">Redo</button>{selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId) && <button className="button button-danger button-compact" onClick={() => deleteConnection(selectedEdgeId)}><Trash2 size={13} /> Delete connection</button>}{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
           <div className="flow-canvas" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
             <ReactFlow<Node<WorkflowNodeData>, Edge> onInit={setReactFlowInstance} nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} isConnectable={true} connectionLineType={ConnectionLineType.SmoothStep} connectionLineStyle={{ stroke: "#6978ed", strokeWidth: 2.5 }} defaultEdgeOptions={{ type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" }, style: { stroke: "#8793d8", strokeWidth: 2 } }} onNodeClick={(_, node) => { setSelectedNode(node as Node<WorkflowNodeData>); setSelectedEdgeId(null); }} onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNode(null); }} onPaneClick={() => { setSelectedNode(null); setSelectedEdgeId(null); }} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
               <Background gap={20} size={1} color="#dfe5ee" />
