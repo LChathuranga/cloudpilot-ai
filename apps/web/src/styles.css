@@ -53,3 +53,12 @@
 .setting-field select{cursor:pointer}
 .setting-checkbox{display:flex!important;align-items:center;gap:7px;margin-top:7px;font-weight:500!important}
 .setting-checkbox input{accent-color:#596be8}
+
+
+/* Workflow naming and local version controls */
+.workflow-name-control{display:flex;align-items:center;gap:10px;margin-top:12px;max-width:420px}
+.workflow-name-control label{font-size:10px;font-weight:700;color:#68758b;white-space:nowrap}
+.workflow-name-control input{width:100%;min-width:0;border:1px solid #dfe5ed;border-radius:7px;background:#fff;padding:8px 10px;font-size:11px;color:#26334a;outline-color:#6978ed}
+.saved-version-select{max-width:230px;min-width:130px;border:1px solid #dfe5ed;border-radius:7px;background:#fff;padding:6px 8px;font-size:10px;color:#39455a}
+.canvas-toolbar-actions .button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:700px){.workflow-name-control{max-width:100%;align-items:flex-start;flex-direction:column;gap:5px}.saved-version-select{max-width:100%;width:100%}}
