@@ -203,7 +203,10 @@ export default function App() {
     const currentKey = JSON.stringify(currentSnapshot);
     const previousKey = JSON.stringify(lastSnapshot.current);
 
-    if (currentKey === previousKey) return;
+    if (currentKey === previousKey) {
+      if (skipHistoryCapture.current) skipHistoryCapture.current = false;
+      return;
+    }
 
     if (skipHistoryCapture.current) {
       skipHistoryCapture.current = false;
