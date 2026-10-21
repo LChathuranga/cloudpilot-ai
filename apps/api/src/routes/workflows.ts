@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -18,7 +18,7 @@ const idSchema = z.string().min(1).max(128);
 const jsonValue = (value: unknown): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
-function userId(req: Parameters<typeof workflowsRouter.get>[1] extends never ? never : any): string {
+function userId(req: Request): string {
   return req.userId as string;
 }
 
@@ -71,8 +71,7 @@ workflowsRouter.get("/:id", async (req, res, next) => {
       res.status(400).json({ error: { code: "VERSION_INVALID", message: "Version must be a positive integer." } }); return;
     }
     const workflow = await prisma.workflow.findFirst({
-      where: { id: id.data, ownerId: userId(req) },
-      include: { versions: version ? { where: { version } } : { where: { version: { equals: undefined } }, orderBy: { version: "desc" }, take: 1 } }
+      where: { id: id.data, ownerId: userId(req) }
     });
     if (!workflow) { res.status(404).json({ error: { code: "WORKFLOW_NOT_FOUND", message: "Workflow was not found." } }); return; }
     const selected = version
@@ -170,4 +169,4 @@ workflowsRouter.post("/:id/mock-runs", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-class VersionConflictError extends Error {}
+class VersionConflictError extends Error { constructor() { super("Version conflict"); this.name = "VersionConflictError"; } }
