@@ -49,6 +49,27 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
     errors.push("Every node must have a unique ID.");
   }
 
+  for (const node of graph.nodes) {
+    const config = node.config;
+    if (node.type === "build" && (typeof config.command !== "string" || !config.command.trim())) {
+      errors.push(`Build node "${node.label}" needs a build command.`);
+    }
+    if (node.type === "test" && (typeof config.command !== "string" || !config.command.trim())) {
+      errors.push(`Test node "${node.label}" needs a test command.`);
+    }
+    if (node.type === "trigger" && typeof config.event === "string" && !["manual", "push", "pull_request", "schedule"].includes(config.event)) {
+      errors.push(`Trigger node "${node.label}" has an unsupported event.`);
+    }
+    if (node.type === "deploy") {
+      if (typeof config.provider !== "string" || !["aws", "gcp", "azure", "mock"].includes(config.provider)) {
+        errors.push(`Deploy node "${node.label}" needs a supported provider.`);
+      }
+      if (typeof config.environment !== "string" || !["development", "staging", "production"].includes(config.environment)) {
+        errors.push(`Deploy node "${node.label}" needs a supported environment.`);
+      }
+    }
+  }
+
   for (const edge of graph.edges) {
     if (!ids.has(edge.source)) errors.push(`Connection ${edge.id} has a missing source node.`);
     if (!ids.has(edge.target)) errors.push(`Connection ${edge.id} has a missing target node.`);
