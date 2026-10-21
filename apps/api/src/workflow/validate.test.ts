@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validateWorkflow } from "./validate.js";
+import type { WorkflowGraph } from "./schema.js";
 
-const validGraph = () => ({
+const validGraph = (): WorkflowGraph => ({
   id: "workflow-test",
   name: "Test workflow",
   version: 1,
