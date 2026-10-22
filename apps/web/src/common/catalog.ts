@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineComponent, type ComponentDefinition } from "./component-contract";
+import { defineComponent, type ComponentDefinition } from "./component-contract.js";
 
 const triggerConfigSchema = z.object({
   event: z.enum(["manual", "push", "pull_request", "schedule"]),
