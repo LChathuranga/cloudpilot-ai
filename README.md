@@ -1,18 +1,17 @@
 # CloudPilot AI
 
-AI-assisted visual deployment workflow design and automation.
+AI-assisted visual infrastructure design and deployment workflow automation.
 
-CloudPilot lets users describe deployment workflows, inspect and edit a node-based graph, and safely analyze existing deployment scripts. The MVP begins with a local visual editor and mock-only execution. Real cloud provisioning is not enabled.
+CloudPilot AI is planned as one platform combining a visual infrastructure designer, a visual CI/CD workflow editor, AI-generated proposals, and safe, reviewed provisioning. The current `dev` branch remains a frontend prototype; this repository does not yet implement the full backend, AI planner, infrastructure compiler or real cloud execution.
 
-## Current MVP foundation
+## Current frontend foundation
 
 - React + TypeScript + Vite web app in a pnpm workspace
 - Node-based workflow canvas powered by React Flow
 - Runtime-validated workflow graph schema using Zod
-- Basic graph checks for duplicate node IDs, missing connection endpoints, and self-connections
-- Text-only import suggestions for `.bat`, `.cmd`, `.ps1`, `.sh`, `.yml`, and `.yaml` files
-- Mock-only run action that validates the graph without executing shell commands
-- Initial implementation checklist in [docs/implementation/mvp-plan.md](docs/implementation/mvp-plan.md)
+- Basic graph validation
+- Text-only import suggestions for supported deployment files
+- Mock/validation-oriented workflow behavior; no real cloud provisioning
 
 ## Run locally
 
@@ -30,16 +29,18 @@ pnpm build
 pnpm typecheck
 ```
 
-## Important safety notes
+## Safety notes
 
-- Imported files are untrusted reference material. They are read as text and never executed by the importer.
-- The current script parser is a prototype heuristic, not a secure or complete parser for every shell dialect.
-- AI workflow generation is planned but is not implemented yet.
-- The current mock run validates the graph; it does not run workflow commands or provision cloud resources.
-- Never add secrets, access tokens, or cloud credentials to the repository.
+- Imported files are untrusted reference material; the importer must never execute them.
+- AI workflow generation and infrastructure design are planned capabilities, not claims about the current implementation.
+- Mock execution does not run deployment commands or provision cloud resources.
+- Never commit secrets, access tokens, Terraform state, or cloud credentials.
 
-## Architecture
+## Architecture and design
 
-The original V1.0 baseline is preserved in [docs/architecture/v1.0/architecture-diagrams.md](docs/architecture/v1.0/architecture-diagrams.md). The approved design is documented in [Architecture v1.1](docs/architecture/v1.1/architecture-diagrams.md).
+- [Architecture v1.2 design pack](docs/architecture/v1.2/README.md) — proposed architecture, component catalog, dual-canvas UI, visual-first infrastructure model, workflow semantics, Express backend, roadmap and Git workflow.
+- [Architecture v1.1 baseline](docs/architecture/v1.1/architecture-diagrams.md) — prior design for AI workflow proposals and safe deployment-file import.
+- [Architecture v1.0 baseline](docs/architecture/v1.0/architecture-diagrams.md) — original mock-first design.
+- [MVP implementation checklist](docs/implementation/mvp-plan.md).
 
-The implementation roadmap is [docs/implementation/mvp-plan.md](docs/implementation/mvp-plan.md). AWS ECS/Fargate and GCP Cloud Run remain future provider targets and are outside the initial MVP.
+Architecture v1.2 is a proposal awaiting review; it does not mean the described features have already been implemented. Work should proceed milestone by milestone through short-lived branches and pull requests into `dev`. Only reviewed and explicitly approved releases should be merged from `dev` into `main`.
