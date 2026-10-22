@@ -11,19 +11,21 @@ export const resourceReferenceSchema = z.object({
   revision: z.number().int().positive().optional(),
 });
 
+export const workflowNodeTypes = [
+  "trigger",
+  "source",
+  "build",
+  "test",
+  "security-scan",
+  "approval",
+  "deploy",
+  "health-check",
+  "rollback",
+] as const;
+
 export const workflowNodeSchema = z.object({
   id: stableIdSchema,
-  type: z.enum([
-    "trigger",
-    "source",
-    "build",
-    "test",
-    "security-scan",
-    "approval",
-    "deploy",
-    "health-check",
-    "rollback",
-  ]),
+  type: z.enum(workflowNodeTypes),
   label: z.string().min(1).max(100),
   config: z.record(z.unknown()).default({}),
 });
