@@ -1,9 +1,9 @@
 # Delivery Roadmap — One Milestone at a Time
 
-**Status:** Proposed plan; no implementation work is authorized by this document alone.  
+**Status:** Architecture v1.2 approved by the project owner on 2026-10-22; Milestone 1 implementation is in progress on a feature branch.  
 **Working rule:** Review and agree on each milestone, implement only that milestone, test it, review its PR into `dev`, then begin the next one.
 
-## Milestone 0 — Architecture review (current)
+## Milestone 0 — Architecture review (approved)
 
 Deliverables:
 - [x] Record product direction: CI/CD + infrastructure design/provisioning.
@@ -11,12 +11,12 @@ Deliverables:
 - [x] Select visual-first infrastructure model with Terraform/OpenTofu generation.
 - [x] Define component families and typed contracts at design level.
 - [x] Define workflow semantics, backend boundaries and branch flow.
-- [ ] Review the full design pack with the project owner.
-- [ ] Resolve open questions and mark design version approved.
+- [x] Review the full design pack with the project owner.
+- [x] Resolve open questions and mark design version approved.
 
 Acceptance: design docs reflect an explicit decision; no backend/provider code is added as part of this milestone.
 
-## Milestone 1 — Component contract and graph core
+## Milestone 1 — Component contract and graph core (in progress)
 
 Scope:
 - Finalize TypeScript/Zod component definition contracts.

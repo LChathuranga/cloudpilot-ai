@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty"
+    "typecheck": "tsc -b --pretty",
+    "test:core": "tsc --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --outDir .test-dist src/common/component-contract.ts src/common/graph-core.ts src/common/catalog.ts && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@xyflow/react": "^12.8.5",
