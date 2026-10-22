@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   addEdge, MarkerType, useEdgesState, useNodesState,
   type Connection, type Edge, type ReactFlowInstance,
 } from "@xyflow/react";
 import { validateWorkflowGraph, type WorkflowNodeType } from "./workflow/schema";
-import { defaultNodeConfig, initialEdges, initialNodes, inferNodeType, kindIcon, nodeCatalog, SAVED_WORKFLOWS_KEY } from "./workflow/node-config";
-import type { SavedWorkflow, SavedWorkflowVersion, WorkflowNode, WorkflowNodeData, WorkflowSnapshot } from "./workflow/workflow-types";
+import { defaultNodeConfig, initialEdges, initialNodes, nodeCatalog } from "./workflow/node-config";
+import type { SavedWorkflow, WorkflowNode, WorkflowNodeData } from "./workflow/workflow-types";
+import { useWorkflowHistory } from "./hooks/useWorkflowHistory";
+import { analyzeDeploymentScript } from "./workflow/script-importer";
+import { createSavedWorkflowVersion, loadSavedWorkflows, persistSavedWorkflows } from "./workflow/workflow-storage";
 import AppHeader from "./components/AppHeader";
 import ActivityPanels from "./components/ActivityPanels";
 import WorkflowCanvas from "./components/WorkflowCanvas";
@@ -20,50 +23,15 @@ export default function App() {
   const [workflowId, setWorkflowId] = useState(() => `workflow-${Date.now()}`);
   const [workflowName, setWorkflowName] = useState("My deployment workflow");
   const [workflowVersion, setWorkflowVersion] = useState(1);
-  const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>(() => {
-    try {
-      const stored = window.localStorage.getItem(SAVED_WORKFLOWS_KEY);
-      const parsed: unknown = stored ? JSON.parse(stored) : [];
-      return Array.isArray(parsed) ? parsed as SavedWorkflow[] : [];
-    } catch {
-      return [];
-    }
-  });
+  const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>(loadSavedWorkflows);
   const [selectedSavedVersion, setSelectedSavedVersion] = useState("");
   const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-  const undoStack = useRef<WorkflowSnapshot[]>([]);
-  const redoStack = useRef<WorkflowSnapshot[]>([]);
-  const lastSnapshot = useRef<WorkflowSnapshot>({ nodes: initialNodes, edges: initialEdges });
-  const skipHistoryCapture = useRef(false);
   const [notice, setNotice] = useState("Ready to design. This prototype only simulates workflow execution.");
   const [isRunning, setIsRunning] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<WorkflowNode, Edge> | null>(null);
 
-  useEffect(() => {
-    const currentSnapshot: WorkflowSnapshot = { nodes, edges };
-    if (JSON.stringify(currentSnapshot) === JSON.stringify(lastSnapshot.current)) {
-      if (skipHistoryCapture.current) skipHistoryCapture.current = false;
-      return;
-    }
-
-    if (skipHistoryCapture.current) {
-      skipHistoryCapture.current = false;
-      lastSnapshot.current = currentSnapshot;
-      setCanUndo(undoStack.current.length > 0);
-      setCanRedo(redoStack.current.length > 0);
-      return;
-    }
-
-    undoStack.current.push(lastSnapshot.current);
-    if (undoStack.current.length > 100) undoStack.current.shift();
-    redoStack.current = [];
-    lastSnapshot.current = currentSnapshot;
-    setCanUndo(undoStack.current.length > 0);
-    setCanRedo(false);
-  }, [nodes, edges]);
+  const history = useWorkflowHistory(nodes, edges, setNodes, setEdges, setNotice);
 
   const graphErrors = useMemo(() => validateWorkflowGraph({
     id: workflowId,
@@ -205,99 +173,33 @@ export default function App() {
     }
 
     const source = await file.text();
-    const suggestions = source.split(/\r?\n/)
-      .map((line) => ({ line: line.trim(), kind: inferNodeType(line) }))
-      .filter((item): item is { line: string; kind: WorkflowNodeType } => item.kind !== null)
-      .slice(0, 12);
-
-    if (suggestions.length === 0) {
+    const importedGraph = analyzeDeploymentScript(source);
+    if (importedGraph.nodes.length === 0) {
       setNotice("No recognizable build, test, security, deployment, or health-check commands were found. Nothing was executed.");
       return;
     }
-
-    const importBatchId = `import-batch-${Date.now()}`;
-    const importedNodes: WorkflowNode[] = suggestions.map((item, index) => ({
-      id: `${importBatchId}-${index}`,
-      className: `workflow-node workflow-node-${item.kind}`,
-      position: { x: 80 + index * 230, y: 330 },
-      data: {
-        label: `${kindIcon[item.kind]} ${item.kind.replace("-", " ")}`,
-        kind: item.kind,
-        config: defaultNodeConfig(item.kind),
-        description: `Suggested from: ${item.line.slice(0, 100)}`,
-        importBatchId,
-      },
-    }));
-    const importedEdges: Edge[] = importedNodes.slice(1).map((node, index) => ({
-      id: `${importBatchId}-edge-${index}`, source: importedNodes[index].id, target: node.id, animated: true,
-    }));
-    setNodes((current) => [...current, ...importedNodes]);
-    setEdges((current) => [...current, ...importedEdges]);
+    setNodes((current) => [...current, ...importedGraph.nodes]);
+    setEdges((current) => [...current, ...importedGraph.edges]);
     setNotice(`Analyzed ${file.name}: suggested ${suggestions.length} nodes. The file was read as text only; it was not executed. Review every suggestion before use.`);
   }
 
-  function undoWorkflowChange() {
-    const previous = undoStack.current.pop();
-    if (!previous) return;
-    redoStack.current.push({ nodes, edges });
-    skipHistoryCapture.current = true;
-    lastSnapshot.current = previous;
-    setNodes(previous.nodes);
-    setEdges(previous.edges);
-    setSelectedNode(null);
-    setSelectedEdgeId(null);
-    setCanUndo(undoStack.current.length > 0);
-    setCanRedo(true);
-    setNotice("Undid the last workflow change.");
-  }
-
-  function redoWorkflowChange() {
-    const next = redoStack.current.pop();
-    if (!next) return;
-    undoStack.current.push({ nodes, edges });
-    skipHistoryCapture.current = true;
-    lastSnapshot.current = next;
-    setNodes(next.nodes);
-    setEdges(next.edges);
-    setSelectedNode(null);
-    setSelectedEdgeId(null);
-    setCanUndo(true);
-    setCanRedo(redoStack.current.length > 0);
-    setNotice("Redid the workflow change.");
-  }
-
-  function persistSavedWorkflows(next: SavedWorkflow[]) {
-    try {
-      window.localStorage.setItem(SAVED_WORKFLOWS_KEY, JSON.stringify(next));
-      setSavedWorkflows(next);
-      return true;
-    } catch {
-      setNotice("Could not save this workflow in browser storage. Check available storage space or browser privacy settings.");
-      return false;
-    }
-  }
-
   function saveWorkflow() {
-    const existing = savedWorkflows.find((workflow) => workflow.id === workflowId);
-    const nextVersion = (existing?.versions.reduce((max, item) => Math.max(max, item.version), 0) ?? 0) + 1;
-    const snapshot: SavedWorkflowVersion = {
+    const { workflows, snapshot } = createSavedWorkflowVersion({
+      savedWorkflows,
       workflowId,
-      name: workflowName.trim() || "Untitled workflow",
-      version: nextVersion,
-      savedAt: new Date().toISOString(),
-      nodes: nodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } })),
-      edges: edges.map((edge) => ({ ...edge })),
-    };
-    const next: SavedWorkflow[] = existing
-      ? savedWorkflows.map((workflow) => workflow.id === workflowId
-        ? { ...workflow, name: snapshot.name, versions: [...workflow.versions, snapshot] }
-        : workflow)
-      : [...savedWorkflows, { id: workflowId, name: snapshot.name, versions: [snapshot] }];
-    if (!persistSavedWorkflows(next)) return;
+      workflowName,
+      nodes,
+      edges,
+    });
+    if (!persistSavedWorkflows(workflows)) {
+      setNotice("Could not save this workflow in browser storage. Check available storage space or browser privacy settings.");
+      return;
+    }
+    setSavedWorkflows(workflows);
     setWorkflowName(snapshot.name);
-    setWorkflowVersion(nextVersion);
-    setSelectedSavedVersion(`${workflowId}:${nextVersion}`);
-    setNotice(`Saved "${snapshot.name}" as version ${nextVersion}. This is a local browser save; no cloud commands were executed.`);
+    setWorkflowVersion(snapshot.version);
+    setSelectedSavedVersion(`${workflowId}:${snapshot.version}`);
+    setNotice(`Saved "${snapshot.name}" as version ${snapshot.version}. This is a local browser save; no cloud commands were executed.`);
   }
 
   function openSavedWorkflow() {
@@ -310,12 +212,7 @@ export default function App() {
     }
     const restoredNodes = snapshot.nodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } }));
     const restoredEdges = snapshot.edges.map((edge) => ({ ...edge }));
-    skipHistoryCapture.current = true;
-    undoStack.current = [];
-    redoStack.current = [];
-    lastSnapshot.current = { nodes: restoredNodes, edges: restoredEdges };
-    setNodes(restoredNodes);
-    setEdges(restoredEdges);
+    history.resetTo({ nodes: restoredNodes, edges: restoredEdges });
     setWorkflowId(snapshot.workflowId);
     setWorkflowName(snapshot.name);
     setWorkflowVersion(snapshot.version);
@@ -330,12 +227,7 @@ export default function App() {
     if (!window.confirm("Start a new workflow? Save your current work first if you want to keep it.")) return;
     const nextNodes = initialNodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } }));
     const nextEdges = initialEdges.map((edge) => ({ ...edge }));
-    skipHistoryCapture.current = true;
-    undoStack.current = [];
-    redoStack.current = [];
-    lastSnapshot.current = { nodes: nextNodes, edges: nextEdges };
-    setNodes(nextNodes);
-    setEdges(nextEdges);
+    history.resetTo({ nodes: nextNodes, edges: nextEdges });
     setWorkflowId(`workflow-${Date.now()}`);
     setWorkflowName("My deployment workflow");
     setWorkflowVersion(1);
@@ -379,8 +271,8 @@ export default function App() {
             workflowVersion={workflowVersion} nodeCount={nodes.length} edgeCount={edges.length}
             savedWorkflows={savedWorkflows} selectedSavedVersion={selectedSavedVersion}
             onSelectedSavedVersionChange={setSelectedSavedVersion} onSave={saveWorkflow} onOpen={openSavedWorkflow}
-            onNew={startNewWorkflow} onUndo={undoWorkflowChange} onRedo={redoWorkflowChange}
-            canUndo={canUndo} canRedo={canRedo}
+            onNew={startNewWorkflow} onUndo={() => { history.undo(); setSelectedNode(null); setSelectedEdgeId(null); }} onRedo={() => { history.redo(); setSelectedNode(null); setSelectedEdgeId(null); }}
+            canUndo={history.canUndo} canRedo={history.canRedo}
             selectedEdgeExists={Boolean(selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId))}
             onDeleteConnection={() => { if (selectedEdgeId) deleteConnection(selectedEdgeId); }}
             hasImportedNodes={nodes.some((node) => Boolean(node.data.importBatchId))}
