@@ -33,4 +33,4 @@ This design pack records the architecture decisions discussed for CloudPilot AI 
 
 ## Review rule
 
-Treat every document as a proposal until its milestone is approved. We should agree on one milestone at a time, implement it, test it, and merge it into `dev) only after review. Promote `dev` to `main` only when the release is tested and explicitly approved.
+Treat every document as a proposal until its milestone is approved. We should agree on one milestone at a time, implement it, test it, and merge it into `dev` only after review. Promote `dev` to `main` only when the release is tested and explicitly approved.
