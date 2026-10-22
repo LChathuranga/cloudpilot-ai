@@ -1,40 +1,17 @@
 import { z } from "zod";
+import {
+  workflowNodeTypes,
+  workflowNodeSchema,
+  workflowEdgeSchema,
+  workflowGraphSchema,
+  type WorkflowGraph as SharedWorkflowGraph,
+} from "../common/graph-core";
 
-export const workflowNodeTypes = [
-  "trigger",
-  "source",
-  "build",
-  "test",
-  "security-scan",
-  "approval",
-  "deploy",
-  "health-check",
-  "rollback",
-] as const;
-
-export const workflowNodeSchema = z.object({
-  id: z.string().min(1),
-  type: z.enum(workflowNodeTypes),
-  label: z.string().min(1).max(100),
-  config: z.record(z.unknown()).default({}),
-});
-
-export const workflowEdgeSchema = z.object({
-  id: z.string().min(1),
-  source: z.string().min(1),
-  target: z.string().min(1),
-});
-
-export const workflowGraphSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1).max(120),
-  version: z.number().int().positive(),
-  nodes: z.array(workflowNodeSchema),
-  edges: z.array(workflowEdgeSchema),
-});
-
+export { workflowNodeTypes, workflowNodeSchema, workflowEdgeSchema, workflowGraphSchema };
 export type WorkflowNodeType = (typeof workflowNodeTypes)[number];
-export type WorkflowGraph = z.infer<typeof workflowGraphSchema>;
+// Input types permit defaulted schema fields to be omitted by existing editor callers.
+export type WorkflowGraph = z.input<typeof workflowGraphSchema>;
+export type ParsedWorkflowGraph = SharedWorkflowGraph;
 
 export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
   const parsed = workflowGraphSchema.safeParse(graph);
