@@ -9,8 +9,8 @@ const validWorkflow = {
   name: "CI",
   version: 1,
   nodes: [
-    { id: "trigger", type: "trigger", label: "Trigger", config: {} },
-    { id: "build", type: "build", label: "Build", config: { command: "npm run build" } },
+    { id: "trigger", type: "trigger", label: "Trigger", config: { event: "manual", branch: "main" } },
+    { id: "build", type: "build", label: "Build", config: { command: "npm run build", workingDirectory: "." } },
   ],
   edges: [{ id: "edge-trigger-build", source: "trigger", target: "build" }],
 };
@@ -64,7 +64,7 @@ test("accepts a valid infrastructure graph", () => {
     name: "Demo",
     version: 1,
     resources: [
-      { id: "vpc", componentId: "infrastructure.aws.vpc", label: "VPC", provider: "aws", config: {} },
+      { id: "vpc", componentId: "infrastructure.aws.vpc", label: "VPC", provider: "aws", config: { cidr: "10.0.0.0/16", region: "ap-southeast-1" } },
       { id: "subnet", componentId: "infrastructure.aws.subnet", label: "Subnet", provider: "aws", config: { cidr: "10.0.1.0/24", public: false } },
     ],
     relationships: [
