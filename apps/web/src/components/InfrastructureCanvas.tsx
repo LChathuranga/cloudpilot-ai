@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { addEdge, Background, Controls, MarkerType, MiniMap, ReactFlow, useEdgesState, useNodesState, type Connection, type Edge, type Node } from "@xyflow/react";
-import { Cloud, Database, GitBranch, Layers3, Plus, ShieldCheck } from "lucide-react";
+import { Cloud, Database, GitBranch, Plus, ShieldCheck } from "lucide-react";
 import { validateInfrastructureGraph } from "../common/graph-core";
 import type { NodeConfig } from "../workflow/workflow-types";
 
