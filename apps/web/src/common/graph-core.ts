@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { schemaVersionSchema, validateComponentConfig } from "./component-contract.js";
+import { schemaVersionSchema, validateComponentConfig, validatePortConnection } from "./component-contract.js";
 import { getComponentDefinition } from "./catalog.js";
 
 export const stableIdSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/, {
@@ -106,7 +106,8 @@ export interface GraphValidationIssue {
     | "unreachable-node"
     | "unknown-component"
     | "invalid-config"
-    | "provider-mismatch";
+    | "provider-mismatch"
+    | "invalid-port";
   message: string;
   path?: string;
 }
@@ -184,6 +185,22 @@ export function validateWorkflowGraph(input: unknown): GraphValidationResult {
       issues.push({ code: "missing-endpoint", path: `edges.${edge.id}`, message: `Edge "${edge.id}" references a node that does not exist.` });
       continue;
     }
+    if (edge.sourcePort || edge.targetPort) {
+      const sourceNode = graph.nodes.find((node) => node.id === edge.source);
+      const targetNode = graph.nodes.find((node) => node.id === edge.target);
+      const sourceDefinition = sourceNode ? getComponentDefinition(componentByWorkflowType[sourceNode.type] ?? "") : undefined;
+      const targetDefinition = targetNode ? getComponentDefinition(componentByWorkflowType[targetNode.type] ?? "") : undefined;
+      const sourcePort = sourceDefinition?.metadata.outputs.find((port) => port.id === edge.sourcePort);
+      const targetPort = targetDefinition?.metadata.inputs.find((port) => port.id === edge.targetPort);
+      if (!sourcePort || !targetPort) {
+        issues.push({ code: "invalid-port", path: `edges.${edge.id}`, message: `Edge "${edge.id}" must reference a supported output port and input port.` });
+      } else {
+        const compatibility = validatePortConnection(sourcePort, targetPort);
+        if (!compatibility.compatible) {
+          issues.push({ code: "invalid-port", path: `edges.${edge.id}`, message: compatibility.message ?? `Edge "${edge.id}" has incompatible ports.` });
+        }
+      }
+    }
     if (edge.source === edge.target) {
       issues.push({ code: "self-edge", path: `edges.${edge.id}`, message: `Edge "${edge.id}" cannot connect a node to itself.` });
       continue;
@@ -234,6 +251,8 @@ export function validateInfrastructureGraph(input: unknown): GraphValidationResu
   const resourceIds = new Set<string>();
   const edgeIds = new Set<string>();
   const relationshipKeys = new Set<string>();
+  const dependencyAdjacency = new Map<string, string[]>();
+  for (const resource of graph.resources) dependencyAdjacency.set(resource.id, []);
   for (const resource of graph.resources) {
     if (resourceIds.has(resource.id)) issues.push({ code: "duplicate-node-id", path: "resources", message: `Duplicate resource ID "${resource.id}".` });
     resourceIds.add(resource.id);
@@ -260,12 +279,34 @@ export function validateInfrastructureGraph(input: unknown): GraphValidationResu
       issues.push({ code: "missing-endpoint", path: `relationships.${edge.id}`, message: `Relationship "${edge.id}" references a resource that does not exist.` });
       continue;
     }
+    if (edge.sourcePort || edge.targetPort) {
+      const sourceResource = graph.resources.find((resource) => resource.id === edge.source);
+      const targetResource = graph.resources.find((resource) => resource.id === edge.target);
+      const sourceDefinition = sourceResource ? getComponentDefinition(sourceResource.componentId) : undefined;
+      const targetDefinition = targetResource ? getComponentDefinition(targetResource.componentId) : undefined;
+      const sourcePort = sourceDefinition?.metadata.outputs.find((port) => port.id === edge.sourcePort);
+      const targetPort = targetDefinition?.metadata.inputs.find((port) => port.id === edge.targetPort);
+      if (!sourcePort || !targetPort) {
+        issues.push({ code: "invalid-port", path: `relationships.${edge.id}`, message: `Relationship "${edge.id}" must reference a supported output port and input port.` });
+      } else {
+        const compatibility = validatePortConnection(sourcePort, targetPort);
+        if (!compatibility.compatible) {
+          issues.push({ code: "invalid-port", path: `relationships.${edge.id}`, message: compatibility.message ?? `Relationship "${edge.id}" has incompatible ports.` });
+        }
+      }
+    }
+    if (edge.relationship === "depends-on" || edge.relationship === "contains") {
+      dependencyAdjacency.get(edge.source)?.push(edge.target);
+    }
     if (edge.source === edge.target) {
       issues.push({ code: "self-edge", path: `relationships.${edge.id}`, message: `Relationship "${edge.id}" cannot reference itself.` });
     }
     const key = `${edge.source}→${edge.target}:${edge.relationship}`;
     if (relationshipKeys.has(key)) issues.push({ code: "duplicate-edge", path: `relationships.${edge.id}`, message: `Duplicate "${edge.relationship}" relationship between these resources.` });
     relationshipKeys.add(key);
+  }
+  if (detectCycle(dependencyAdjacency)) {
+    issues.push({ code: "cycle", path: "relationships", message: "Infrastructure contains a cycle in its containment/dependency relationships." });
   }
   return { valid: issues.length === 0, issues };
 }
