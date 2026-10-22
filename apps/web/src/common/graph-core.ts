@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { schemaVersionSchema } from "./component-contract";
+import { schemaVersionSchema } from "./component-contract.js";
 
 export const stableIdSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/, {
   message: "ID must be a stable, non-empty identifier using letters, numbers, '.', '_', ':', or '-'.",
@@ -138,7 +138,7 @@ export function validateWorkflowGraph(input: unknown): GraphValidationResult {
     return {
       valid: false,
       issues: parsed.error.issues.map((issue) => ({
-        code: "schema",
+        code: "schema" as const,
         path: issue.path.join("."),
         message: `${issue.path.length ? issue.path.join(".") + ": " : ""}${issue.message}`,
       })),
