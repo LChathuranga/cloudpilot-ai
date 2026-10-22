@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addEdge, MarkerType, useEdgesState, useNodesState,
-  type Connection, type Edge, type Node, type ReactFlowInstance,
+  type Connection, type Edge, type ReactFlowInstance,
 } from "@xyflow/react";
 import { validateWorkflowGraph, type WorkflowNodeType } from "./workflow/schema";
 import { defaultNodeConfig, initialEdges, initialNodes, inferNodeType, kindIcon, nodeCatalog, SAVED_WORKFLOWS_KEY } from "./workflow/node-config";
@@ -14,7 +14,7 @@ import WorkflowToolbar from "./components/WorkflowToolbar";
 import WorkspaceSidebar from "./components/WorkspaceSidebar";
 
 export default function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNodeData>(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [prompt, setPrompt] = useState("");
   const [workflowId, setWorkflowId] = useState(() => `workflow-${Date.now()}`);
