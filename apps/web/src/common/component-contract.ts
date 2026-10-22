@@ -93,3 +93,27 @@ export function validateComponentConfig<TConfig extends z.ZodTypeAny>(
     }),
   };
 }
+
+export interface PortCompatibilityResult {
+  compatible: boolean;
+  message?: string;
+}
+
+export function validatePortConnection(
+  source: ComponentPort,
+  target: ComponentPort,
+): PortCompatibilityResult {
+  if (source.direction !== "output") {
+    return { compatible: false, message: `Source port "${source.id}" must be an output port.` };
+  }
+  if (target.direction !== "input") {
+    return { compatible: false, message: `Target port "${target.id}" must be an input port.` };
+  }
+  if (source.dataType !== "any" && target.dataType !== "any" && source.dataType !== target.dataType) {
+    return {
+      compatible: false,
+      message: `Port type mismatch: "${source.dataType}" cannot connect to "${target.dataType}".`,
+    };
+  }
+  return { compatible: true };
+}
