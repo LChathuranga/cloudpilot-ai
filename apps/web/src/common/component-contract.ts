@@ -76,15 +76,7 @@ export function defineComponent<TConfig extends z.ZodTypeAny>(
   if (definition.metadata.outputs.some((port) => port.direction !== "output")) {
     throw new Error(`Component "${definition.metadata.id}" has an output port with the wrong direction.`);
   }
-  return Object.freeze({
-    ...definition,
-    metadata: Object.freeze({
-      ...definition.metadata,
-      inputs: Object.freeze([...definition.metadata.inputs]),
-      outputs: Object.freeze([...definition.metadata.outputs]),
-      tags: Object.freeze([...definition.metadata.tags]),
-    }),
-  });
+  return definition;
 }
 
 export function validateComponentConfig<TConfig extends z.ZodTypeAny>(
