@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "pnpm --filter @cloudpilot/web dev",
     "build": "pnpm --filter @cloudpilot/web build",
-    "typecheck": "pnpm --filter @cloudpilot/web typecheck"
+    "typecheck": "pnpm --filter @cloudpilot/web typecheck",
+    "test": "pnpm --filter @cloudpilot/web test:core"
   },
   "engines": {
     "node": ">=20"
