@@ -149,3 +149,24 @@ test("rejects cycles in infrastructure containment and dependency relationships"
   assert.equal(result.valid, false);
   assert.ok(result.issues.some((issue) => issue.code === "cycle"));
 });
+
+test("rejects unsupported schema-version formats", () => {
+  const result = validateWorkflowGraph({
+    ...validWorkflow,
+    schemaVersion: "v1",
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((issue) => issue.code === "schema"));
+});
+
+test("rejects duplicate stable node identifiers", () => {
+  const result = validateWorkflowGraph({
+    ...validWorkflow,
+    nodes: [
+      ...validWorkflow.nodes,
+      { id: "build", type: "build", label: "Duplicate build", config: { command: "npm run build", workingDirectory: "." } },
+    ],
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((issue) => issue.code === "duplicate-node-id"));
+});
