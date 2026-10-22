@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { GitBranch, Layers3 } from "lucide-react";
 import {
   addEdge, MarkerType, useEdgesState, useNodesState,
   type Connection, type Edge, type ReactFlowInstance,
@@ -15,10 +16,15 @@ import WorkflowCanvas from "./components/WorkflowCanvas";
 import WorkflowPrompt from "./components/WorkflowPrompt";
 import WorkflowToolbar from "./components/WorkflowToolbar";
 import WorkspaceSidebar from "./components/WorkspaceSidebar";
+import WorkflowsDashboard from "./components/WorkflowsDashboard";
+import InfrastructureCanvas from "./components/InfrastructureCanvas";
+import type { SavedWorkflowVersion } from "./workflow/workflow-types";
 
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [view, setView] = useState<"dashboard" | "editor">("dashboard");
+  const [activeCanvas, setActiveCanvas] = useState<"workflow" | "infrastructure">("workflow");
   const [prompt, setPrompt] = useState("");
   const [workflowId, setWorkflowId] = useState(() => `workflow-${Date.now()}`);
   const [workflowName, setWorkflowName] = useState("My deployment workflow");
@@ -30,6 +36,61 @@ export default function App() {
   const [notice, setNotice] = useState("Ready to design. This prototype only simulates workflow execution.");
   const [isRunning, setIsRunning] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<WorkflowNode, Edge> | null>(null);
+
+  function openDashboardWorkflow(snapshot: SavedWorkflowVersion) {
+    const restoredNodes = snapshot.nodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } }));
+    const restoredEdges = snapshot.edges.map((edge) => ({ ...edge }));
+    history.resetTo({ nodes: restoredNodes, edges: restoredEdges });
+    setWorkflowId(snapshot.workflowId);
+    setWorkflowName(snapshot.name);
+    setWorkflowVersion(snapshot.version);
+    setSelectedNode(null);
+    setSelectedEdgeId(null);
+    setActiveCanvas("workflow");
+    setView("editor");
+    setNotice(`Opened "${snapshot.name}" version ${snapshot.version}.`);
+  }
+
+  function createWorkflow(mode: "blank" | "sample" | "ai") {
+    const nextNodes = mode === "sample" ? initialNodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } })) : [];
+    const nextEdges = mode === "sample" ? initialEdges.map((edge) => ({ ...edge })) : [];
+    history.resetTo({ nodes: nextNodes, edges: nextEdges });
+    setWorkflowId(`workflow-${Date.now()}`);
+    setWorkflowName(mode === "sample" ? "Sample deployment workflow" : mode === "ai" ? "AI workflow proposal" : "Untitled workflow");
+    setWorkflowVersion(1);
+    setSelectedNode(null);
+    setSelectedEdgeId(null);
+    setPrompt(mode === "ai" ? "Create a secure CI/CD pipeline for my application with build, tests, security scanning, approval and deployment." : "");
+    setActiveCanvas("workflow");
+    setView("editor");
+    setNotice(mode === "ai"
+      ? "AI proposal workspace opened. The AI planner backend is not connected yet, so no generated nodes are being claimed. You can edit the prompt and build a draft manually."
+      : mode === "sample" ? "Sample pipeline loaded. Edit the nodes and settings, then save your own version." : "Blank workflow created. Add nodes from the catalog or import a deployment file.");
+  }
+
+  function duplicateDashboardWorkflow(snapshot: SavedWorkflowVersion) {
+    const duplicateId = `workflow-${Date.now()}`;
+    const duplicatedNodes = snapshot.nodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data, config: { ...node.data.config } } }));
+    const duplicatedEdges = snapshot.edges.map((edge) => ({ ...edge }));
+    history.resetTo({ nodes: duplicatedNodes, edges: duplicatedEdges });
+    setWorkflowId(duplicateId);
+    setWorkflowName(`${snapshot.name} copy`);
+    setWorkflowVersion(1);
+    setSelectedNode(null);
+    setSelectedEdgeId(null);
+    setActiveCanvas("workflow");
+    setView("editor");
+    setNotice("Workflow duplicated as a new unsaved draft. Save it to add it to your dashboard.");
+  }
+
+  function deleteDashboardWorkflow(workflowIdToDelete: string) {
+    const next = savedWorkflows.filter((workflow) => workflow.id !== workflowIdToDelete);
+    if (!persistSavedWorkflows(next)) {
+      setNotice("Could not update browser storage. The saved workflow was not deleted.");
+      return;
+    }
+    setSavedWorkflows(next);
+  }
 
   const history = useWorkflowHistory(nodes, edges, setNodes, setEdges, setNotice);
 
@@ -244,43 +305,53 @@ export default function App() {
     window.setTimeout(() => setIsRunning(false), 500);
   }
 
+  if (view === "dashboard") {
+    return <WorkflowsDashboard workflows={savedWorkflows} onCreate={createWorkflow} onOpen={openDashboardWorkflow} onDuplicate={duplicateDashboardWorkflow} onDelete={deleteDashboardWorkflow} />;
+  }
+
   return (
     <main className="app-shell">
       <AppHeader workflowName={workflowName} workflowVersion={workflowVersion} isRunning={isRunning}
-        hasValidationErrors={graphErrors.length > 0} onRun={runMock} />
-      <section className="workspace">
-        <WorkspaceSidebar onCreateNode={createNode} onImportScript={importScript} />
+        hasValidationErrors={graphErrors.length > 0} onRun={runMock} onBack={() => setView("dashboard")} />
+      <section className={activeCanvas === "infrastructure" ? "workspace infrastructure-mode" : "workspace"}>
+        {activeCanvas === "workflow" && <WorkspaceSidebar onCreateNode={createNode} onImportScript={importScript} />}
         <section className="main-panel">
-          <div className="page-heading">
+          <div className="page-heading editor-page-heading">
             <div>
-              <div className="eyebrow">WORKFLOW DESIGNER <span>•</span> MVP PREVIEW</div>
-              <h1>Build your deployment flow</h1>
-              <p>Describe it, shape it visually, then validate before running.</p>
-              <div className="workflow-name-control">
+              <div className="eyebrow">CLOUDPILOT WORKSPACE <span>•</span> MVP PREVIEW</div>
+              <h1>{activeCanvas === "workflow" ? "Build your deployment flow" : "Design your cloud infrastructure"}</h1>
+              <p>{activeCanvas === "workflow" ? "Shape your CI/CD pipeline visually, configure every step, then validate." : "Model cloud resources and their relationships separately from workflow execution."}</p>
+              {activeCanvas === "workflow" && <div className="workflow-name-control">
                 <label htmlFor="workflow-name">Workflow name</label>
                 <input id="workflow-name" maxLength={120} value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} />
-              </div>
+              </div>}
             </div>
           </div>
-          <WorkflowPrompt prompt={prompt} onPromptChange={setPrompt} onSubmit={applyPrompt} />
-          <WorkflowToolbar
-            workflowVersion={workflowVersion} nodeCount={nodes.length} edgeCount={edges.length}
-            savedWorkflows={savedWorkflows} selectedSavedVersion={selectedSavedVersion}
-            onSelectedSavedVersionChange={setSelectedSavedVersion} onSave={saveWorkflow} onOpen={openSavedWorkflow}
-            onNew={startNewWorkflow} onUndo={() => { history.undo(); setSelectedNode(null); setSelectedEdgeId(null); }} onRedo={() => { history.redo(); setSelectedNode(null); setSelectedEdgeId(null); }}
-            canUndo={history.canUndo} canRedo={history.canRedo}
-            selectedEdgeExists={Boolean(selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId))}
-            onDeleteConnection={() => { if (selectedEdgeId) deleteConnection(selectedEdgeId); }}
-            hasImportedNodes={nodes.some((node) => Boolean(node.data.importBatchId))}
-            onRemoveImportedNodes={removeImportedNodes} hasNodes={nodes.length > 0} onClear={clearWorkflow}
-          />
-          <WorkflowCanvas
-            nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-            onConnect={onConnect} onInit={setReactFlowInstance} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}
-            selectedNode={selectedNode} onSelectNode={setSelectedNode} onSelectEdge={setSelectedEdgeId}
-            onDeleteNode={deleteNode} onUpdateNode={updateNode}
-          />
-          <ActivityPanels errors={graphErrors} notice={notice} />
+          <nav className="canvas-mode-tabs" aria-label="Design canvas">
+            <button type="button" className={activeCanvas === "workflow" ? "canvas-mode-tab active" : "canvas-mode-tab"} onClick={() => setActiveCanvas("workflow")}><GitBranch size={16} /><span><b>Workflows</b><small>CI/CD and automation</small></span></button>
+            <button type="button" className={activeCanvas === "infrastructure" ? "canvas-mode-tab active" : "canvas-mode-tab"} onClick={() => setActiveCanvas("infrastructure")}><Layers3 size={16} /><span><b>Infrastructure</b><small>Cloud resource design</small></span><span className="design-only-tag">DESIGN ONLY</span></button>
+          </nav>
+          {activeCanvas === "workflow" ? <>
+            <WorkflowPrompt prompt={prompt} onPromptChange={setPrompt} onSubmit={applyPrompt} />
+            <WorkflowToolbar
+              workflowVersion={workflowVersion} nodeCount={nodes.length} edgeCount={edges.length}
+              savedWorkflows={savedWorkflows} selectedSavedVersion={selectedSavedVersion}
+              onSelectedSavedVersionChange={setSelectedSavedVersion} onSave={saveWorkflow} onOpen={openSavedWorkflow}
+              onNew={startNewWorkflow} onUndo={() => { history.undo(); setSelectedNode(null); setSelectedEdgeId(null); }} onRedo={() => { history.redo(); setSelectedNode(null); setSelectedEdgeId(null); }}
+              canUndo={history.canUndo} canRedo={history.canRedo}
+              selectedEdgeExists={Boolean(selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId))}
+              onDeleteConnection={() => { if (selectedEdgeId) deleteConnection(selectedEdgeId); }}
+              hasImportedNodes={nodes.some((node) => Boolean(node.data.importBatchId))}
+              onRemoveImportedNodes={removeImportedNodes} hasNodes={nodes.length > 0} onClear={clearWorkflow}
+            />
+            <WorkflowCanvas
+              nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+              onConnect={onConnect} onInit={setReactFlowInstance} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}
+              selectedNode={selectedNode} onSelectNode={setSelectedNode} onSelectEdge={setSelectedEdgeId}
+              onDeleteNode={deleteNode} onUpdateNode={updateNode}
+            />
+            <ActivityPanels errors={graphErrors} notice={notice} />
+          </> : <InfrastructureCanvas onNotice={setNotice} />}
           <footer className="footer-note">CloudPilot AI <span>•</span> Early MVP prototype <span>•</span> Real deployment is disabled</footer>
         </section>
       </section>
