@@ -180,7 +180,7 @@ export default function App() {
     }
     setNodes((current) => [...current, ...importedGraph.nodes]);
     setEdges((current) => [...current, ...importedGraph.edges]);
-    setNotice(`Analyzed ${file.name}: suggested ${suggestions.length} nodes. The file was read as text only; it was not executed. Review every suggestion before use.`);
+    setNotice(`Analyzed ${file.name}: suggested ${importedGraph.nodes.length} nodes. The file was read as text only; it was not executed. Review every suggestion before use.`);
   }
 
   function saveWorkflow() {
@@ -218,8 +218,6 @@ export default function App() {
     setWorkflowVersion(snapshot.version);
     setSelectedNode(null);
     setSelectedEdgeId(null);
-    setCanUndo(false);
-    setCanRedo(false);
     setNotice(`Opened "${snapshot.name}" version ${snapshot.version}.`);
   }
 
