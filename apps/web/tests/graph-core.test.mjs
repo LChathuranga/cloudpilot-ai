@@ -48,7 +48,7 @@ test("rejects infrastructure relationships with missing resources", () => {
     name: "Demo",
     version: 1,
     resources: [
-      { id: "vpc", componentId: "infrastructure.aws.vpc", label: "VPC", provider: "aws", config: {} },
+      { id: "vpc", componentId: "infrastructure.aws.vpc", label: "VPC", provider: "aws", config: { cidr: "10.0.0.0/16", region: "ap-southeast-1" } },
     ],
     relationships: [
       { id: "subnet-in-vpc", source: "subnet", target: "vpc", relationship: "contains" },
@@ -65,7 +65,7 @@ test("accepts a valid infrastructure graph", () => {
     version: 1,
     resources: [
       { id: "vpc", componentId: "infrastructure.aws.vpc", label: "VPC", provider: "aws", config: {} },
-      { id: "subnet", componentId: "infrastructure.aws.subnet", label: "Subnet", provider: "aws", config: {} },
+      { id: "subnet", componentId: "infrastructure.aws.subnet", label: "Subnet", provider: "aws", config: { cidr: "10.0.1.0/24", public: false } },
     ],
     relationships: [
       { id: "contains-subnet", source: "vpc", target: "subnet", relationship: "contains" },
@@ -99,4 +99,20 @@ test("typed ports accept compatible output-to-input connections", () => {
     { id: "source", label: "Source", direction: "input", dataType: "artifact", required: false, multiple: false },
   );
   assert.equal(result.compatible, true);
+});
+
+test("rejects unsupported infrastructure components and invalid configuration", () => {
+  const result = validateInfrastructureGraph({
+    id: "infra",
+    name: "Invalid",
+    version: 1,
+    resources: [
+      { id: "vpc", componentId: "infrastructure.aws.vpc", label: "VPC", provider: "aws", config: { cidr: "bad", region: "" } },
+      { id: "mystery", componentId: "infrastructure.aws.unknown", label: "Unknown", provider: "aws", config: {} },
+    ],
+    relationships: [],
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((issue) => issue.code === "invalid-config"));
+  assert.ok(result.issues.some((issue) => issue.code === "unknown-component"));
 });
