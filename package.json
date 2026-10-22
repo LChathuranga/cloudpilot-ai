@@ -5,11 +5,8 @@
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "dev": "pnpm --filter @cloudpilot/web dev",
-    "build": "pnpm --filter @cloudpilot/web build && pnpm --filter @cloudpilot/api build",
-    "typecheck": "pnpm --filter @cloudpilot/web typecheck && pnpm --filter @cloudpilot/api typecheck",
-    "api:dev": "pnpm --filter @cloudpilot/api dev",
-    "api:build": "pnpm --filter @cloudpilot/api build",
-    "api:typecheck": "pnpm --filter @cloudpilot/api typecheck"
+    "build": "pnpm --filter @cloudpilot/web build",
+    "typecheck": "pnpm --filter @cloudpilot/web typecheck"
   },
   "engines": {
     "node": ">=20"
