@@ -3,9 +3,50 @@
 **Status:** Proposed design  
 **Goal:** One coherent workspace for infrastructure architecture and workflow automation
 
-## 1. Workspace layout
+## 1. Post-login landing page: Workflows Dashboard
 
-The project workspace contains:
+After successful login, users should land on their **Workflows Dashboard**, not directly inside an empty editor. This page lists the workflows saved by the authenticated user and makes creating a new workflow the primary action. The dashboard is the entry point to the existing dual-canvas editor; it does not replace or combine the two canvases.
+
+### Dashboard content
+
+- Header with CloudPilot AI branding, workspace/project selector, account menu and global navigation.
+- Page title **Workflows** with a clear **New workflow** action.
+- Search and filters for workflow name, project, environment, status and last updated.
+- A list/grid of the user's saved workflows. Each item shows name, short description, project/environment, last modified time and current status.
+- Per-workflow actions: **Open**, **Edit**, **Duplicate**, and **Archive/Delete** (with confirmation for destructive actions).
+- An empty state for new users with **Create workflow** and **Ask AI to design a workflow** actions.
+- Optional recent activity and run status summaries, without making them more prominent than the user's workflows.
+
+### Dashboard interactions
+
+- Selecting a saved workflow opens that workflow in the dual-canvas editor, restoring its last saved revision and selected canvas where appropriate.
+- **New workflow** starts a creation flow: choose a blank workflow or ask AI to propose one. AI output is a reviewable draft, not an automatically executed deployment.
+- A workflow can reference an infrastructure design, but the Infrastructure and Workflow canvases remain separate views with separate graph semantics.
+- The dashboard must only return workflows accessible to the authenticated user/workspace. Backend authorization must enforce ownership and membership; hiding another user's workflows in the UI is not sufficient.
+- Saving from the editor persists a revision and updates the dashboard's name, status and last-modified metadata.
+- If a user has no workflows, show the empty state rather than an empty table or a forced editor.
+
+### Post-login navigation
+
+```mermaid
+flowchart TD
+  Login[Login / authentication] --> Dashboard[Workflows Dashboard]
+  Dashboard --> Existing[Select saved workflow]
+  Dashboard --> New[New workflow]
+  Existing --> Editor[Dual-canvas editor]
+  New --> Choice{How to start?}
+  Choice --> Blank[Blank workflow]
+  Choice --> AI[Ask AI for a proposal]
+  Blank --> Editor
+  AI --> Review[Review and edit proposed graph]
+  Review --> Editor
+  Editor --> Infra[Infrastructure canvas]
+  Editor --> Workflow[Workflow canvas]
+```
+
+## 2. Workspace layout
+
+The editor workspace (opened from the Workflows Dashboard) contains:
 - project/environment selector and global status;
 - tabs for **Infrastructure** and **Workflows**;
 - provider/component sidebar;
