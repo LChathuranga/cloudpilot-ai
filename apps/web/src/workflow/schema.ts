@@ -13,32 +13,34 @@ export type WorkflowNodeType = (typeof workflowNodeTypes)[number];
 export type WorkflowGraph = z.input<typeof workflowGraphSchema>;
 export type ParsedWorkflowGraph = SharedWorkflowGraph;
 
-export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
+export function validateWorkflowGraph(graph: unknown): string[] {
   const parsed = workflowGraphSchema.safeParse(graph);
   if (!parsed.success) {
     return parsed.error.issues.map((issue) => issue.message);
   }
 
-  const ids = new Set(graph.nodes.map((node) => node.id));
+  const validGraph = parsed.data;
+
+  const ids = new Set(validGraph.nodes.map((node) => node.id));
   const errors: string[] = [];
   const edgePairs = new Set<string>();
   const edgeIds = new Set<string>();
   const adjacency = new Map<string, string[]>();
 
-  if (ids.size !== graph.nodes.length) {
+  if (ids.size !== validGraph.nodes.length) {
     errors.push("Every node must have a unique ID.");
   }
-  if (graph.nodes.length === 0) {
+  if (validGraph.nodes.length === 0) {
     errors.push("Add at least one node before running the workflow.");
   }
-  if (!graph.nodes.some((node) => node.type === "trigger")) {
+  if (!validGraph.nodes.some((node) => node.type === "trigger")) {
     errors.push("Add a Trigger node to define how the workflow starts.");
   }
-  if (graph.nodes.length > 0 && !graph.nodes.some((node) => node.type !== "trigger")) {
+  if (validGraph.nodes.length > 0 && !validGraph.nodes.some((node) => node.type !== "trigger")) {
     errors.push("Add at least one action node after the Trigger.");
   }
 
-  for (const node of graph.nodes) {
+  for (const node of validGraph.nodes) {
     const config = node.config;
     const requireText = (key: string, label: string) => {
       if (typeof config[key] !== "string" || !String(config[key]).trim()) {
@@ -92,7 +94,7 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
     if (node.type === "rollback") requireText("target", "a rollback target");
   }
 
-  for (const edge of graph.edges) {
+  for (const edge of validGraph.edges) {
     if (edgeIds.has(edge.id)) errors.push("Every connection must have a unique ID.");
     edgeIds.add(edge.id);
     if (!ids.has(edge.source)) errors.push(`Connection ${edge.id} has a missing source node.`);
@@ -109,7 +111,7 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
     }
   }
 
-  const triggerIds = graph.nodes.filter((node) => node.type === "trigger").map((node) => node.id);
+  const triggerIds = validGraph.nodes.filter((node) => node.type === "trigger").map((node) => node.id);
   const reachable = new Set<string>();
   const pending = [...triggerIds];
   while (pending.length) {
@@ -118,7 +120,7 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
     reachable.add(current);
     pending.push(...(adjacency.get(current) ?? []));
   }
-  for (const node of graph.nodes) {
+  for (const node of validGraph.nodes) {
     if (node.type !== "trigger" && !reachable.has(node.id)) {
       errors.push(`Node "${node.label}" is not reachable from a Trigger. Connect it into the workflow.`);
     }
