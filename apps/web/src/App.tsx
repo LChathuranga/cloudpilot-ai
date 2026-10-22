@@ -306,13 +306,13 @@ export default function App() {
   }
 
   if (view === "dashboard") {
-    return <WorkflowsDashboard workflows={savedWorkflows} onCreate={createWorkflow} onOpen={openDashboardWorkflow} onDuplicate={duplicateDashboardWorkflow} onDelete={deleteDashboardWorkflow} />;
+    return <WorkflowsDashboard workflows={savedWorkflows} onCreate={createWorkflow} onOpen={openDashboardWorkflow} onDuplicate={duplicateDashboardWorkflow} onDelete={deleteDashboardWorkflow} onOpenInfrastructure={() => { setActiveCanvas("infrastructure"); setView("editor"); }} />;
   }
 
   return (
     <main className="app-shell">
       <AppHeader workflowName={workflowName} workflowVersion={workflowVersion} isRunning={isRunning}
-        hasValidationErrors={graphErrors.length > 0} onRun={runMock} onBack={() => setView("dashboard")} />
+        hasValidationErrors={activeCanvas !== "workflow" || graphErrors.length > 0} onRun={runMock} onBack={() => setView("dashboard")} />
       <section className={activeCanvas === "infrastructure" ? "workspace infrastructure-mode" : "workspace"}>
         {activeCanvas === "workflow" && <WorkspaceSidebar onCreateNode={createNode} onImportScript={importScript} />}
         <section className="main-panel">
