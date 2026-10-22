@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { schemaVersionSchema } from "./component-contract.js";
+import { schemaVersionSchema, validateComponentConfig } from "./component-contract.js";
+import { getComponentDefinition } from "./catalog.js";
 
 export const stableIdSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/, {
   message: "ID must be a stable, non-empty identifier using letters, numbers, '.', '_', ':', or '-'.",
@@ -102,7 +103,10 @@ export interface GraphValidationIssue {
     | "duplicate-edge"
     | "cycle"
     | "missing-trigger"
-    | "unreachable-node";
+    | "unreachable-node"
+    | "unknown-component"
+    | "invalid-config"
+    | "provider-mismatch";
   message: string;
   path?: string;
 }
@@ -147,6 +151,23 @@ export function validateWorkflowGraph(input: unknown): GraphValidationResult {
 
   const graph = parsed.data;
   const issues: GraphValidationIssue[] = [];
+  const componentByWorkflowType: Partial<Record<WorkflowNode["type"], string>> = {
+    trigger: "workflow.trigger",
+    build: "workflow.build",
+    approval: "workflow.approval",
+  };
+  for (const node of graph.nodes) {
+    const componentId = componentByWorkflowType[node.type];
+    if (!componentId) continue;
+    const definition = getComponentDefinition(componentId);
+    if (!definition) continue;
+    const configResult = validateComponentConfig(definition, node.config);
+    if (!configResult.success) {
+      for (const message of configResult.errors) {
+        issues.push({ code: "invalid-config", path: `nodes.${node.id}.config`, message: `Node "${node.label}": ${message}` });
+      }
+    }
+  }
   const nodeIds = new Set<string>();
   const edgeIds = new Set<string>();
   const edgePairs = new Set<string>();
@@ -216,6 +237,21 @@ export function validateInfrastructureGraph(input: unknown): GraphValidationResu
   for (const resource of graph.resources) {
     if (resourceIds.has(resource.id)) issues.push({ code: "duplicate-node-id", path: "resources", message: `Duplicate resource ID "${resource.id}".` });
     resourceIds.add(resource.id);
+    const definition = getComponentDefinition(resource.componentId);
+    if (!definition || definition.metadata.family !== "infrastructure-resource") {
+      issues.push({ code: "unknown-component", path: `resources.${resource.id}.componentId`, message: `Resource "${resource.label}" uses unsupported infrastructure component "${resource.componentId}".` });
+      continue;
+    }
+    const providerFromId = resource.componentId.split(".")[1];
+    if (providerFromId && providerFromId !== resource.provider && providerFromId !== "generic") {
+      issues.push({ code: "provider-mismatch", path: `resources.${resource.id}.provider`, message: `Resource "${resource.label}" component expects provider "${providerFromId}", not "${resource.provider}".` });
+    }
+    const configResult = validateComponentConfig(definition, resource.config);
+    if (!configResult.success) {
+      for (const message of configResult.errors) {
+        issues.push({ code: "invalid-config", path: `resources.${resource.id}.config`, message: `Resource "${resource.label}": ${message}` });
+      }
+    }
   }
   for (const edge of graph.relationships) {
     if (edgeIds.has(edge.id)) issues.push({ code: "duplicate-edge-id", path: "relationships", message: `Duplicate relationship ID "${edge.id}".` });
