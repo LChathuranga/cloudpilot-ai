@@ -1,3 +1,3 @@
-export * from "./component-contract";
-export * from "./graph-core";
-export * from "./catalog";
+export * from "./component-contract.js";
+export * from "./graph-core.js";
+export * from "./catalog.js";
