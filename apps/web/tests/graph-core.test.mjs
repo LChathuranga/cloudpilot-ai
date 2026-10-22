@@ -116,3 +116,36 @@ test("rejects unsupported infrastructure components and invalid configuration", 
   assert.ok(result.issues.some((issue) => issue.code === "invalid-config"));
   assert.ok(result.issues.some((issue) => issue.code === "unknown-component"));
 });
+
+test("rejects incompatible typed ports on workflow edges", () => {
+  const result = validateWorkflowGraph({
+    ...validWorkflow,
+    edges: [{
+      id: "typed-edge",
+      source: "trigger",
+      target: "build",
+      sourcePort: "next",
+      targetPort: "source",
+    }],
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((issue) => issue.code === "invalid-port"));
+});
+
+test("rejects cycles in infrastructure containment and dependency relationships", () => {
+  const result = validateInfrastructureGraph({
+    id: "infra",
+    name: "Cyclic",
+    version: 1,
+    resources: [
+      { id: "vpc", componentId: "infrastructure.aws.vpc", label: "VPC", provider: "aws", config: { cidr: "10.0.0.0/16", region: "ap-southeast-1" } },
+      { id: "subnet", componentId: "infrastructure.aws.subnet", label: "Subnet", provider: "aws", config: { cidr: "10.0.1.0/24", public: false } },
+    ],
+    relationships: [
+      { id: "contains", source: "vpc", target: "subnet", relationship: "contains" },
+      { id: "reverse", source: "subnet", target: "vpc", relationship: "contains" },
+    ],
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((issue) => issue.code === "cycle"));
+});
