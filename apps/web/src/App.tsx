@@ -231,8 +231,6 @@ export default function App() {
     setWorkflowVersion(1);
     setSelectedNode(null);
     setSelectedEdgeId(null);
-    setCanUndo(false);
-    setCanRedo(false);
     setNotice("Started a new workflow. Save it to keep a local version.");
   }
 
