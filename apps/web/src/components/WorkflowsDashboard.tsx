@@ -13,11 +13,11 @@ type Props = {
 export default function WorkflowsDashboard({ workflows, onCreate, onOpen, onDuplicate, onDelete }: Props) {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const latest = useMemo(() => workflows.map((workflow) => ({
-    workflow,
-    version: [...workflow.versions].sort((a, b) => b.version - a.version)[0],
-  })).filter((item) => item.version && item.workflow.name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => b.version.savedAt.localeCompare(a.version.savedAt)), [workflows, search]);
+  const latest = useMemo(() => workflows.flatMap((workflow) => {
+    const version = [...workflow.versions].sort((a, b) => b.version - a.version)[0];
+    if (!version || !workflow.name.toLowerCase().includes(search.toLowerCase())) return [];
+    return [{ workflow, version }];
+  }).sort((a, b) => b.version.savedAt.localeCompare(a.version.savedAt)), [workflows, search]);
 
   return (
     <main className="dashboard-shell">
