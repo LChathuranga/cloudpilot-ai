@@ -8,9 +8,10 @@ type Props = {
   onOpen: (workflow: SavedWorkflowVersion) => void;
   onDuplicate: (workflow: SavedWorkflowVersion) => void;
   onDelete: (workflowId: string) => void;
+  onOpenInfrastructure: () => void;
 };
 
-export default function WorkflowsDashboard({ workflows, onCreate, onOpen, onDuplicate, onDelete }: Props) {
+export default function WorkflowsDashboard({ workflows, onCreate, onOpen, onDuplicate, onDelete, onOpenInfrastructure }: Props) {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const latest = useMemo(() => workflows.flatMap((workflow) => {
@@ -33,7 +34,7 @@ export default function WorkflowsDashboard({ workflows, onCreate, onOpen, onDupl
         <aside className="dashboard-sidebar">
           <div className="sidebar-label">WORKSPACE</div>
           <div className="dashboard-nav active"><Workflow size={17} /> Workflows <span>{workflows.length}</span></div>
-          <div className="dashboard-nav muted"><Layers3 size={17} /> Infrastructure <small>Design</small></div>
+          <button type="button" className="dashboard-nav muted dashboard-nav-button" onClick={onOpenInfrastructure}><Layers3 size={17} /> Infrastructure <small>Design</small></button>
           <div className="dashboard-sidebar-note"><span className="dashboard-note-icon"><Activity size={16} /></span><b>Build safely</b><p>Design and validate your graphs before any real deployment is enabled.</p></div>
         </aside>
         <section className="dashboard-content">
@@ -44,8 +45,8 @@ export default function WorkflowsDashboard({ workflows, onCreate, onOpen, onDupl
           </div>
           <div className="dashboard-stats">
             <div className="dashboard-stat"><span className="stat-icon purple"><Workflow size={17} /></span><div><small>Total workflows</small><b>{workflows.length}</b></div></div>
-            <div className="dashboard-stat"><span className="stat-icon green"><Activity size={17} /></span><div><small>Ready to review</small><b>{workflows.length}</b></div></div>
-            <div className="dashboard-stat"><span className="stat-icon blue"><Layers3 size={17} /></span><div><small>Infrastructure designs</small><b>1 workspace</b></div></div>
+            <div className="dashboard-stat"><span className="stat-icon green"><Activity size={17} /></span><div><small>Saved drafts</small><b>{workflows.length}</b></div></div>
+            <div className="dashboard-stat"><span className="stat-icon blue"><Layers3 size={17} /></span><div><small>Infrastructure designs</small><b>Available</b></div></div>
           </div>
           <div className="dashboard-section-heading"><div><h2>Your workflows</h2><p>Saved locally in this browser for this prototype.</p></div>
             <label className="dashboard-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search workflows…" /></label>
