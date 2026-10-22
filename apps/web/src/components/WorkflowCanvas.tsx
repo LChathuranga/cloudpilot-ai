@@ -11,7 +11,7 @@ type WorkflowNode = Node<WorkflowNodeData>;
 type Props = {
   nodes: WorkflowNode[];
   edges: Edge[];
-  onNodesChange: (changes: NodeChange<WorkflowNodeData>[]) => void;
+  onNodesChange: (changes: NodeChange<WorkflowNode>[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
   onInit: (instance: ReactFlowInstance<WorkflowNode, Edge>) => void;
