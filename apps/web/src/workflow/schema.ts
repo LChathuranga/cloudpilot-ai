@@ -5,7 +5,7 @@ import {
   workflowEdgeSchema,
   workflowGraphSchema,
   type WorkflowGraph as SharedWorkflowGraph,
-} from "../common/graph-core";
+} from "../common/graph-core.js";
 
 export { workflowNodeTypes, workflowNodeSchema, workflowEdgeSchema, workflowGraphSchema };
 export type WorkflowNodeType = (typeof workflowNodeTypes)[number];
