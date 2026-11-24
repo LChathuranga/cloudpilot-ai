@@ -9,7 +9,9 @@ CloudPilot lets users describe deployment workflows, inspect and edit a node-bas
 - React + TypeScript + Vite web app in a pnpm workspace
 - Node-based workflow canvas powered by React Flow
 - Runtime-validated workflow graph schema using Zod
-- Basic graph checks for duplicate node IDs, missing connection endpoints, and self-connections
+- Custom workflow nodes that show each step's key setting and its validation problems
+- Validation of node settings, connection limits per node type, reachability from a Trigger, and cycles, with messages that name the node and field
+- Local browser save with numbered versions; saved data is checked when it is loaded
 - Text-only import suggestions for `.bat`, `.cmd`, `.ps1`, `.sh`, `.yml`, and `.yaml` files
 - Mock-only run action that validates the graph without executing shell commands
 - Initial implementation checklist in [docs/implementation/mvp-plan.md](docs/implementation/mvp-plan.md)
@@ -28,6 +30,7 @@ For a production build:
 ```bash
 pnpm build
 pnpm typecheck
+pnpm test
 ```
 
 ## Important safety notes
@@ -41,5 +44,7 @@ pnpm typecheck
 ## Architecture
 
 The original V1.0 baseline is preserved in [docs/architecture/v1.0/architecture-diagrams.md](docs/architecture/v1.0/architecture-diagrams.md). The approved design is documented in [Architecture v1.1](docs/architecture/v1.1/architecture-diagrams.md).
+
+The web editor as built is described in [Workflow editor design](docs/design/workflow-editor-design.md).
 
 The implementation roadmap is [docs/implementation/mvp-plan.md](docs/implementation/mvp-plan.md). AWS ECS/Fargate and GCP Cloud Run remain future provider targets and are outside the initial MVP.
