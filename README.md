@@ -9,7 +9,9 @@ CloudPilot AI is planned as one platform combining a visual infrastructure desig
 - React + TypeScript + Vite web app in a pnpm workspace
 - Node-based workflow canvas powered by React Flow
 - Runtime-validated workflow graph schema using Zod
+- Shared typed component contracts and separate workflow/infrastructure graph core (Milestone 1 branch)
 - Basic graph validation
+- Unit tests for graph-core contracts and validation
 - Text-only import suggestions for supported deployment files
 - Mock/validation-oriented workflow behavior; no real cloud provisioning
 
@@ -27,6 +29,7 @@ For a production build:
 ```bash
 pnpm build
 pnpm typecheck
+pnpm test
 ```
 
 ## Safety notes
@@ -43,4 +46,4 @@ pnpm typecheck
 - [Architecture v1.0 baseline](docs/architecture/v1.0/architecture-diagrams.md) — original mock-first design.
 - [MVP implementation checklist](docs/implementation/mvp-plan.md).
 
-Architecture v1.2 is a proposal awaiting review; it does not mean the described features have already been implemented. Work should proceed milestone by milestone through short-lived branches and pull requests into `dev`. Only reviewed and explicitly approved releases should be merged from `dev` into `main`.
+Architecture v1.2 is approved as the product design. Approval does not mean every described feature has already been implemented; implementation remains milestone-based. Work should proceed milestone by milestone through short-lived branches and pull requests into `dev`. Only reviewed and explicitly approved releases should be merged from `dev` into `main`.
