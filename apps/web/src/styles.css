@@ -4,41 +4,15 @@
 
 .catalog-item{width:100%;border:0;background:transparent;text-align:left;cursor:pointer;color:inherit;font:inherit}.catalog-item:hover{background:#f2f4ff}.catalog-item:focus-visible{outline:2px solid #6978ed;outline-offset:-2px}
 
-/* Workflow node visual language: colour identifies node purpose, shape stays consistent. */
-.react-flow__node.workflow-node{min-width:158px;padding:15px 14px;border-width:1px;border-left-width:4px;border-radius:10px;box-shadow:0 5px 14px #26385810;transition:box-shadow .15s ease,transform .15s ease}
-.react-flow__node.workflow-node:hover{box-shadow:0 7px 18px #26385818}
-.react-flow__node.workflow-node.selected{box-shadow:0 0 0 3px #6978ed25,0 5px 14px #26385812}
-.react-flow__node.workflow-node-trigger{background:#eaf8f2;border-color:#a9dfc8;border-left-color:#2c9d70;color:#176d4d;border-radius:999px}
-.react-flow__node.workflow-node-source{background:#eaf2ff;border-color:#c5d8ff;border-left-color:#4679d8;color:#2859a6}
-.react-flow__node.workflow-node-build{background:#f2edff;border-color:#d9ccff;border-left-color:#8262cb;color:#6544a8}
-.react-flow__node.workflow-node-test{background:#eaf8f2;border-color:#bde9d2;border-left-color:#2d9c73;color:#217750}
-.react-flow__node.workflow-node-security-scan{background:#fff4df;border-color:#f2d69b;border-left-color:#bd8423;color:#8e5e0d}
-.react-flow__node.workflow-node-approval{background:#fcecf6;border-color:#f1c9df;border-left-color:#c05b98;color:#963b73}
-.react-flow__node.workflow-node-deploy{background:#e9f0ff;border-color:#c7d5ff;border-left-color:#4f62d7;color:#3549b2;border-radius:10px}
-.react-flow__node.workflow-node-health-check{background:#e3f7fa;border-color:#b7e7ed;border-left-color:#208b9c;color:#176b78}
-.react-flow__node.workflow-node-rollback{background:#fff0ed;border-color:#f2c6bd;border-left-color:#c85a46;color:#a33f30}
-.react-flow__node.workflow-node-trigger .react-flow__handle{background:#2c9d70}
-.react-flow__node.workflow-node-source .react-flow__handle{background:#4679d8}
-.react-flow__node.workflow-node-build .react-flow__handle{background:#8262cb}
-.react-flow__node.workflow-node-test .react-flow__handle{background:#2d9c73}
-.react-flow__node.workflow-node-security-scan .react-flow__handle{background:#bd8423}
-.react-flow__node.workflow-node-approval .react-flow__handle{background:#c05b98}
-.react-flow__node.workflow-node-deploy .react-flow__handle{background:#4f62d7}
-.react-flow__node.workflow-node-health-check .react-flow__handle{background:#208b9c}
-.react-flow__node.workflow-node-rollback .react-flow__handle{background:#c85a46}
 
 
 /* Make the connect interaction discoverable and easy to target. */
-.connect-hint{display:inline-flex;align-items:center;margin-left:7px;padding:5px 8px;border:1px solid #dbe2ff;border-radius:6px;background:#f1f3ff;color:#5363cb;font-size:10px;font-weight:550;letter-spacing:0}
 .react-flow__handle{width:13px;height:13px;border:2px solid #fff;box-shadow:0 0 0 1px #aab4cf;opacity:.96;transition:transform .12s ease,box-shadow .12s ease,opacity .12s ease;z-index:4}
 .react-flow__handle:hover,.react-flow__handle:focus{transform:scale(1.35);box-shadow:0 0 0 3px #6978ed35,0 0 0 1px #6978ed;opacity:1}
 .react-flow__handle-left{left:-7px}
 .react-flow__handle-right{right:-7px}
 .react-flow__connection-path{stroke:#596be8;stroke-width:2.5;stroke-dasharray:6 4}
-.react-flow__edge-path{stroke:#8793d8;stroke-width:2.2}
-.react-flow__edge.animated path{stroke-dasharray:7 4}
 .react-flow__edge.selected .react-flow__edge-path{stroke:#4f62e8;stroke-width:3}
-@media(max-width:700px){.connect-hint{white-space:normal;line-height:1.4;margin:5px 0 0}.canvas-title{flex-wrap:wrap}}
 
 
 /* Node-specific settings panel */
@@ -62,3 +36,69 @@
 .saved-version-select{max-width:230px;min-width:130px;border:1px solid #dfe5ed;border-radius:7px;background:#fff;padding:6px 8px;font-size:10px;color:#39455a}
 .canvas-toolbar-actions .button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:700px){.workflow-name-control{max-width:100%;align-items:flex-start;flex-direction:column;gap:5px}.saved-version-select{max-width:100%;width:100%}}
+
+/* ------------------------------------------------------------------
+   Workflow canvas: custom nodes, connections, minimap, toolbar
+   ------------------------------------------------------------------ */
+.flow-canvas{height:clamp(400px,52vh,560px)}
+@media(max-width:700px){.flow-canvas{height:420px}}
+
+/* Reset React Flow's default node box; the inner .wf-node draws the card. */
+.react-flow__node-workflow{padding:0;border:0;background:transparent;box-shadow:none;min-width:0;border-radius:12px}
+.react-flow__node-workflow.selected{border:0;box-shadow:none}
+
+.wf-node{--kind:#6978ed;position:relative;width:200px;padding:10px 12px 11px 14px;background:#fff;border:1px solid #dfe5ef;border-radius:12px;box-shadow:0 1px 2px #1a2b4512,0 6px 16px #1a2b450d;transition:box-shadow .15s ease,border-color .15s ease}
+.wf-node::before{content:"";position:absolute;left:-1px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--kind)}
+.wf-node:hover{box-shadow:0 1px 2px #1a2b4514,0 10px 22px #1a2b4517}
+.wf-node.is-selected{border-color:var(--kind);box-shadow:0 0 0 3px color-mix(in srgb,var(--kind) 22%,transparent),0 6px 16px #1a2b4512}
+.wf-node.has-issues{border-color:#f1b8ad}
+.wf-node.has-issues.is-selected{border-color:#d9483b}
+.wf-node.is-imported{border-style:dashed}
+
+.wf-node-head{display:flex;align-items:center;gap:7px;min-width:0}
+.wf-node-icon{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:6px;font-size:12px;line-height:1;color:var(--kind);background:color-mix(in srgb,var(--kind) 13%,#fff)}
+.wf-node-type{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--kind);white-space:nowrap}
+.wf-node-spacer{flex:1}
+.wf-node-tag{font-size:9.5px;font-weight:650;color:#6c778a;background:#f1f3f8;border-radius:4px;padding:2px 5px}
+.wf-node-issues{min-width:18px;height:18px;padding:0 5px;display:grid;place-items:center;border-radius:9px;background:#d9483b;color:#fff;font-size:10.5px;font-weight:750;cursor:help}
+.wf-node-name{margin-top:8px;font-size:14px;font-weight:650;color:#182235;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-node-summary{margin-top:3px;font:11px/1.35 ui-monospace,"Cascadia Code",Consolas,monospace;color:#68758b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-node-summary.is-missing{font-family:inherit;font-style:italic;color:#b65d42}
+
+/* Connection dots sit on the left/right edges and take the node colour. */
+.react-flow__node-workflow .react-flow__handle{width:12px;height:12px;background:#fff;border:2px solid var(--kind);box-shadow:none}
+.react-flow__node-workflow .react-flow__handle:hover{background:var(--kind)}
+.react-flow__node-workflow .react-flow__handle-left{left:-6px}
+.react-flow__node-workflow .react-flow__handle-right{right:-6px}
+
+/* Connections: calm solid lines; only the selected one animates. */
+.react-flow__edge-path{stroke:#a3aed0;stroke-width:2}
+.react-flow__edge:hover .react-flow__edge-path{stroke:#7f8cc4}
+.react-flow__edge.selected .react-flow__edge-path{stroke:#4f62e8;stroke-width:2.6;stroke-dasharray:6 4;animation:wf-dash .6s linear infinite}
+@keyframes wf-dash{to{stroke-dashoffset:-10}}
+@media(prefers-reduced-motion:reduce){.react-flow__edge.selected .react-flow__edge-path{animation:none}}
+
+.react-flow__minimap{background:#fff;box-shadow:0 3px 10px #1a2b450d}
+
+/* Toolbar: one row of grouped controls; help moves into a tooltip. */
+.canvas-toolbar{gap:12px;flex-wrap:wrap}
+.canvas-title{white-space:nowrap}
+.canvas-title .canvas-meta{margin-left:4px}
+.canvas-help{position:relative;display:grid;place-items:center;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:#8b95a8;padding:0}
+.canvas-help:hover,.canvas-help:focus-visible{background:#eef0ff;color:#4f62e8}
+.canvas-help::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);width:260px;padding:9px 11px;border-radius:8px;background:#182235;color:#fff;font-size:11px;font-weight:500;line-height:1.45;white-space:normal;text-align:left;box-shadow:0 8px 24px #18223533;opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:20}
+.canvas-help:hover::after,.canvas-help:focus-visible::after{opacity:1}
+.toolbar-group{display:flex;align-items:center;gap:5px}
+.toolbar-group + .toolbar-group,.toolbar-group + .button-primary{margin-left:6px;padding-left:11px;border-left:1px solid #e3e8f0}
+.button-icon{padding:6px;width:30px;height:30px}
+.canvas-toolbar-actions .button-icon:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:700px){.toolbar-group + .toolbar-group,.toolbar-group + .button-primary{margin-left:0;padding-left:0;border-left:0}.canvas-help::after{left:auto;right:0;transform:none}}
+
+/* Cursors: use standard system cursors on the canvas. Chrome/Edge draw "grab"/"grabbing"
+   from their own images on Windows, which can render invisibly with some display-scaling or
+   pointer-size settings. These system cursors always show. */
+.react-flow__pane.draggable{cursor:default}
+.react-flow__pane.dragging{cursor:move}
+.react-flow__node.draggable{cursor:pointer}
+.react-flow__node.draggable.dragging,.react-flow__nodesselection-rect{cursor:move}
+.react-flow__node-workflow .react-flow__handle{cursor:crosshair}

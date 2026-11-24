@@ -2,23 +2,25 @@
 
 ## Current branch
 
-`feature/mvp-foundation`
+`fix/workflow-types-and-validation` (the foundation was merged to `main` in PR #1). Editor design: [Workflow editor design](../design/workflow-editor-design.md).
 
 ## Milestones
 
-### 1. Foundation — in progress
+### 1. Foundation — done
 - [x] Create a pnpm workspace and React + TypeScript web application.
 - [x] Add the first visual workflow canvas using React Flow.
 - [x] Define a Zod-validated workflow graph model.
 - [x] Add basic graph validation for duplicate IDs, missing endpoints, and self-connections.
 - [x] Add safe text-only script import suggestions for common build, test, security, deploy, and health-check commands.
-- [ ] Run a clean dependency install, typecheck, and production build in a Node.js environment.
+- [x] Run a clean dependency install, typecheck, and production build in a Node.js environment.
+- [x] Add unit tests for the schema, editor helpers, and saved-data loading (`pnpm test`).
 
-### 2. Workflow editing
-- [ ] Add a typed custom node component for each supported node type.
-- [ ] Support editing node labels and node-specific configuration.
-- [ ] Validate allowed edge types and detect cycles where cycles are unsupported.
-- [ ] Add local save/load and immutable workflow version snapshots.
+### 2. Workflow editing — mostly done
+- [x] Add a typed custom node component for each supported node type.
+- [x] Support editing node labels and node-specific configuration.
+- [x] Validate connection limits per node type and detect cycles.
+- [ ] Add typed outputs (for example passed / failed) so connections carry an outcome.
+- [x] Add local save/load and immutable workflow version snapshots.
 - [ ] Add a reviewable diff when a workflow is changed.
 
 ### 3. Script import safety

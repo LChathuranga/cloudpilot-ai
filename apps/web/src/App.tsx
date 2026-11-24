@@ -5,7 +5,6 @@ import {
   MiniMap,
   ReactFlow,
   ConnectionLineType,
-  MarkerType,
   addEdge,
   useEdgesState,
   useNodesState,
@@ -27,145 +26,32 @@ import {
   Trash2,
   Workflow,
   X,
+  CircleHelp,
+  Redo2,
+  Undo2,
 } from "lucide-react";
-import { validateWorkflowGraph, type WorkflowNodeType } from "./workflow/schema";
+import { MAX_NODE_LABEL_LENGTH, MAX_WORKFLOW_NAME_LENGTH, checkNewConnection, findWorkflowIssues, isWorkflowNodeType, type WorkflowNodeType } from "./workflow/schema";
+import { NODE_SPACING_X, WORKFLOW_NODE_TYPE, catalogEntry, defaultNodeConfig, edgeDefaults, nodeAccent, nodeCatalog, nodeSettings, suggestNodesFromScript, toWorkflowGraph, type WorkflowCanvasNode, type WorkflowNodeData } from "./workflow/editor";
+import { NodeIssuesContext, nodeTypes } from "./workflow/WorkflowNode";
+import { loadSavedWorkflows, storeSavedWorkflows, type SavedWorkflow, type SavedWorkflowVersion, type WorkflowSnapshot } from "./workflow/storage";
 
-type WorkflowSnapshot = { nodes: Node<WorkflowNodeData>[]; edges: Edge[] };
-type SavedWorkflowVersion = WorkflowSnapshot & { workflowId: string; name: string; version: number; savedAt: string };
-type SavedWorkflow = { id: string; name: string; versions: SavedWorkflowVersion[] };
-const SAVED_WORKFLOWS_KEY = "cloudpilot-ai:saved-workflows:v1";
-
-type NodeConfig = Record<string, string | boolean>;
-
-type WorkflowNodeData = {
-  label: string;
-  config: NodeConfig;
-  kind: WorkflowNodeType;
-  description: string;
-  importBatchId?: string;
-};
-
-
-type SettingField = {
-  key: string;
-  label: string;
-  description: string;
-  input?: "text" | "textarea" | "select" | "checkbox";
-  options?: { label: string; value: string }[];
-};
-
-const nodeSettings: Record<WorkflowNodeType, SettingField[]> = {
-  trigger: [
-    { key: "event", label: "Trigger event", description: "What starts this workflow?", input: "select", options: [{ label: "Manual", value: "manual" }, { label: "Push to branch", value: "push" }, { label: "Pull request", value: "pull_request" }, { label: "Schedule", value: "schedule" }] },
-    { key: "branch", label: "Branch", description: "Branch to watch", input: "text" },
-  ],
-  source: [
-    { key: "repository", label: "Repository URL", description: "Git repository to check out", input: "text" },
-    { key: "branch", label: "Branch", description: "Branch or ref to use", input: "text" },
-  ],
-  build: [
-    { key: "command", label: "Build command", description: "Command to build the artifact", input: "textarea" },
-    { key: "workingDirectory", label: "Working directory", description: "Directory relative to the project root", input: "text" },
-    { key: "artifactPath", label: "Artifact path", description: "Optional output path", input: "text" },
-  ],
-  test: [
-    { key: "command", label: "Test command", description: "Command to run the test suite", input: "textarea" },
-    { key: "workingDirectory", label: "Working directory", description: "Directory relative to the project root", input: "text" },
-    { key: "continueOnFailure", label: "Continue if tests fail", description: "Allow later steps to continue after a test failure", input: "checkbox" },
-  ],
-  "security-scan": [
-    { key: "scanner", label: "Scanner", description: "Security scanner to use", input: "select", options: [{ label: "Trivy", value: "trivy" }, { label: "npm audit", value: "npm-audit" }, { label: "Snyk", value: "snyk" }, { label: "SonarQube", value: "sonarqube" }] },
-    { key: "severityThreshold", label: "Fail at severity", description: "Minimum finding severity that should fail the step", input: "select", options: [{ label: "Low", value: "low" }, { label: "Medium", value: "medium" }, { label: "High", value: "high" }, { label: "Critical", value: "critical" }] },
-  ],
-  approval: [
-    { key: "required", label: "Require approval", description: "Pause for a human decision", input: "checkbox" },
-    { key: "approver", label: "Approver or team", description: "Who should review this step?", input: "text" },
-  ],
-  deploy: [
-    { key: "provider", label: "Cloud provider", description: "Target provider", input: "select", options: [{ label: "AWS", value: "aws" }, { label: "Google Cloud", value: "gcp" }, { label: "Azure", value: "azure" }, { label: "Local / mock", value: "mock" }] },
-    { key: "environment", label: "Environment", description: "Deployment environment", input: "select", options: [{ label: "Development", value: "development" }, { label: "Staging", value: "staging" }, { label: "Production", value: "production" }] },
-    { key: "target", label: "Deployment target", description: "Service, cluster, or app name", input: "text" },
-    { key: "region", label: "Region", description: "Cloud region (if applicable)", input: "text" },
-  ],
-  "health-check": [
-    { key: "url", label: "Health-check URL", description: "Endpoint to check", input: "text" },
-    { key: "expectedStatus", label: "Expected HTTP status", description: "Expected response code", input: "text" },
-    { key: "timeoutSeconds", label: "Timeout (seconds)", description: "Maximum time to wait", input: "text" },
-  ],
-  rollback: [
-    { key: "strategy", label: "Rollback strategy", description: "How to recover", input: "select", options: [{ label: "Previous revision", value: "previous-revision" }, { label: "Blue/green switch", value: "blue-green" }, { label: "Manual recovery", value: "manual" }] },
-    { key: "target", label: "Target service", description: "Service to recover", input: "text" },
-  ],
-};
-
-function defaultNodeConfig(kind: WorkflowNodeType): NodeConfig {
-  const defaults: Record<WorkflowNodeType, NodeConfig> = {
-    trigger: { event: "manual", branch: "main" },
-    source: { repository: "", branch: "main" },
-    build: { command: "npm ci && npm run build", workingDirectory: ".", artifactPath: "dist/" },
-    test: { command: "npm test", workingDirectory: ".", continueOnFailure: false },
-    "security-scan": { scanner: "trivy", severityThreshold: "high" },
-    approval: { required: true, approver: "" },
-    deploy: { provider: "mock", environment: "staging", target: "", region: "" },
-    "health-check": { url: "", expectedStatus: "200", timeoutSeconds: "30" },
-    rollback: { strategy: "previous-revision", target: "" },
-  };
-  return { ...defaults[kind] };
-}
 
 const initialNodes: Node<WorkflowNodeData>[] = [
-  { id: "trigger", className: "workflow-node workflow-node-trigger", position: { x: 60, y: 150 }, data: { label: "Start", kind: "trigger", description: "Workflow entry point", config: defaultNodeConfig("trigger") } },
-  { id: "source", className: "workflow-node workflow-node-source", position: { x: 290, y: 150 }, data: { label: "Checkout source", kind: "source", description: "Prepare source code", config: defaultNodeConfig("source") } },
-  { id: "build", className: "workflow-node workflow-node-build", position: { x: 520, y: 150 }, data: { label: "Build application", kind: "build", description: "Build the project artifact", config: defaultNodeConfig("build") } },
-  { id: "test", className: "workflow-node workflow-node-test", position: { x: 750, y: 150 }, data: { label: "Run tests", kind: "test", description: "Run the configured test suite", config: defaultNodeConfig("test") } },
-  { id: "approval", className: "workflow-node workflow-node-approval", position: { x: 980, y: 150 }, data: { label: "Manual approval", kind: "approval", description: "Human review before deployment", config: defaultNodeConfig("approval") } },
-  { id: "deploy", className: "workflow-node workflow-node-deploy", position: { x: 1210, y: 150 }, data: { label: "Deploy (mock)", kind: "deploy", description: "Simulate deployment; no cloud changes", config: defaultNodeConfig("deploy") } },
+  { id: "trigger", type: WORKFLOW_NODE_TYPE, position: { x: 0 * NODE_SPACING_X, y: 0 }, data: { label: "Start", kind: "trigger", description: "Workflow entry point", config: defaultNodeConfig("trigger") } },
+  { id: "source", type: WORKFLOW_NODE_TYPE, position: { x: 1 * NODE_SPACING_X, y: 0 }, data: { label: "Checkout source", kind: "source", description: "Prepare source code", config: defaultNodeConfig("source") } },
+  { id: "build", type: WORKFLOW_NODE_TYPE, position: { x: 2 * NODE_SPACING_X, y: 0 }, data: { label: "Build application", kind: "build", description: "Build the project artifact", config: defaultNodeConfig("build") } },
+  { id: "test", type: WORKFLOW_NODE_TYPE, position: { x: 3 * NODE_SPACING_X, y: 0 }, data: { label: "Run tests", kind: "test", description: "Run the configured test suite", config: defaultNodeConfig("test") } },
+  { id: "approval", type: WORKFLOW_NODE_TYPE, position: { x: 4 * NODE_SPACING_X, y: 0 }, data: { label: "Manual approval", kind: "approval", description: "Human review before deployment", config: defaultNodeConfig("approval") } },
+  { id: "deploy", type: WORKFLOW_NODE_TYPE, position: { x: 5 * NODE_SPACING_X, y: 0 }, data: { label: "Deploy (mock)", kind: "deploy", description: "Simulate deployment; no cloud changes", config: defaultNodeConfig("deploy") } },
 ];
 
 const initialEdges: Edge[] = [
-  { id: "e-trigger-source", source: "trigger", target: "source", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
-  { id: "e-source-build", source: "source", target: "build", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
-  { id: "e-build-test", source: "build", target: "test", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
-  { id: "e-test-approval", source: "test", target: "approval", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
-  { id: "e-approval-deploy", source: "approval", target: "deploy", type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } },
+  { id: "e-trigger-source", source: "trigger", target: "source", ...edgeDefaults },
+  { id: "e-source-build", source: "source", target: "build", ...edgeDefaults },
+  { id: "e-build-test", source: "build", target: "test", ...edgeDefaults },
+  { id: "e-test-approval", source: "test", target: "approval", ...edgeDefaults },
+  { id: "e-approval-deploy", source: "approval", target: "deploy", ...edgeDefaults },
 ];
-
-const kindIcon: Record<WorkflowNodeType, string> = {
-  trigger: "◉",
-  source: "⑂",
-  build: "▣",
-  test: "✓",
-  "security-scan": "⌁",
-  approval: "◎",
-  deploy: "⇧",
-  "health-check": "♥",
-  rollback: "↶",
-};
-
-const nodeCatalog: { kind: WorkflowNodeType; label: string; description: string; icon: string; iconClass: string }[] = [
-  { kind: "trigger", label: "Trigger", description: "Start workflow", icon: "◉", iconClass: "trigger-icon" },
-  { kind: "source", label: "Source", description: "Checkout repository", icon: "⑂", iconClass: "source-icon" },
-  { kind: "build", label: "Build", description: "Build application", icon: "▣", iconClass: "build-icon" },
-  { kind: "test", label: "Test", description: "Run test suite", icon: "✓", iconClass: "test-icon" },
-  { kind: "security-scan", label: "Security scan", description: "Check known risks", icon: "⌁", iconClass: "scan-icon" },
-  { kind: "approval", label: "Approval", description: "Human checkpoint", icon: "◎", iconClass: "approval-icon" },
-  { kind: "deploy", label: "Deploy", description: "Mock deployment", icon: "⇧", iconClass: "deploy-icon" },
-  { kind: "health-check", label: "Health check", description: "Verify service health", icon: "♥", iconClass: "test-icon" },
-  { kind: "rollback", label: "Rollback", description: "Recovery step", icon: "↶", iconClass: "approval-icon" },
-];
-
-function inferNodeType(line: string): WorkflowNodeType | null {
-  const command = line.trim().toLowerCase();
-  if (!command || command.startsWith("rem ") || command.startsWith("::")) return null;
-  if (/^(echo|@echo|set |cd |pushd |call )/.test(command)) return null;
-  if (/(npm|pnpm|yarn|pip|dotnet|mvn|gradle).*(build|install|publish)/.test(command)) return "build";
-  if (/(test|pytest|jest|vitest|playwright|cypress)/.test(command)) return "test";
-  if (/(docker build|docker push|docker login)/.test(command)) return "build";
-  if (/(aws|az |gcloud|kubectl|helm|terraform|pulumi|deploy)/.test(command)) return "deploy";
-  if (/(trivy|snyk|sonar|security|npm audit)/.test(command)) return "security-scan";
-  if (/(curl|wget|health|healthcheck)/.test(command)) return "health-check";
-  return null;
-}
 
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -174,15 +60,8 @@ export default function App() {
   const [workflowId, setWorkflowId] = useState(() => `workflow-${Date.now()}`);
   const [workflowName, setWorkflowName] = useState("My deployment workflow");
   const [workflowVersion, setWorkflowVersion] = useState(1);
-  const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>(() => {
-    try {
-      const stored = window.localStorage.getItem(SAVED_WORKFLOWS_KEY);
-      const parsed: unknown = stored ? JSON.parse(stored) : [];
-      return Array.isArray(parsed) ? parsed as SavedWorkflow[] : [];
-    } catch {
-      return [];
-    }
-  });
+  const [initialLoad] = useState(loadSavedWorkflows);
+  const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>(initialLoad.workflows);
   const [selectedSavedVersion, setSelectedSavedVersion] = useState("");
   const [selectedNode, setSelectedNode] = useState<Node<WorkflowNodeData> | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -192,7 +71,11 @@ export default function App() {
   const redoStack = useRef<WorkflowSnapshot[]>([]);
   const lastSnapshot = useRef<WorkflowSnapshot>({ nodes: initialNodes, edges: initialEdges });
   const skipHistoryCapture = useRef(false);
-  const [notice, setNotice] = useState("Ready to design. This prototype only simulates workflow execution.");
+  const [notice, setNotice] = useState(() => {
+    if (initialLoad.unreadable) return "Saved workflows in this browser could not be read and were ignored. Saving again will replace them.";
+    if (initialLoad.skippedVersions > 0) return `Skipped ${initialLoad.skippedVersions} saved workflow version(s) that were damaged or from an older format.`;
+    return "Ready to design. This prototype only simulates workflow execution.";
+  });
   const [isRunning, setIsRunning] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<Node<WorkflowNodeData>, Edge> | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -254,18 +137,18 @@ export default function App() {
     setNotice("Redid the workflow change.");
   }
 
-  const graphErrors = useMemo(() => validateWorkflowGraph({
-    id: workflowId,
-    name: workflowName,
-    version: workflowVersion,
-    nodes: nodes.map((node) => ({
-      id: node.id,
-      type: node.data.kind,
-      label: node.data.label,
-      config: node.data.config,
-    })),
-    edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target })),
-  }), [nodes, edges, workflowId, workflowName, workflowVersion]);
+  const graphIssues = useMemo(
+    () => findWorkflowIssues(toWorkflowGraph({ id: workflowId, name: workflowName, version: workflowVersion }, nodes, edges)),
+    [nodes, edges, workflowId, workflowName, workflowVersion],
+  );
+  const graphErrors = useMemo(() => [...new Set(graphIssues.map((issue) => issue.message))], [graphIssues]);
+  const issuesByNode = useMemo(() => {
+    const byNode = new Map<string, string[]>();
+    for (const issue of graphIssues) {
+      if (issue.nodeId) byNode.set(issue.nodeId, [...(byNode.get(issue.nodeId) ?? []), issue.message]);
+    }
+    return byNode;
+  }, [graphIssues]);
 
   const onConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target) {
@@ -278,6 +161,17 @@ export default function App() {
     }
     if (edges.some((edge) => edge.source === connection.source && edge.target === connection.target)) {
       setNotice("That connection already exists.");
+      return;
+    }
+    const sourceNode = nodes.find((node) => node.id === connection.source);
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    if (!sourceNode || !targetNode) return;
+    const limitProblem = checkNewConnection(
+      { type: sourceNode.data.kind, outgoing: edges.filter((edge) => edge.source === sourceNode.id).length },
+      { type: targetNode.data.kind, incoming: edges.filter((edge) => edge.target === targetNode.id).length },
+    );
+    if (limitProblem) {
+      setNotice(limitProblem);
       return;
     }
     const adjacency = new Map<string, string[]>();
@@ -294,18 +188,17 @@ export default function App() {
       visited.add(current);
       stack.push(...(adjacency.get(current) ?? []));
     }
-    setEdges((current) => addEdge({ ...connection, type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" } }, current));
+    setEdges((current) => addEdge({ ...connection, ...edgeDefaults }, current));
     setNotice("Connection added.");
-  }, [edges, setEdges]);
+  }, [nodes, edges, setEdges]);
 
   function createNode(kind: WorkflowNodeType, position?: { x: number; y: number }) {
-    const definition = nodeCatalog.find((item) => item.kind === kind);
-    if (!definition) return;
+    const definition = catalogEntry(kind);
     const id = `node-${kind}-${Date.now()}`;
     setNodes((current) => [...current, {
       id,
-      className: `workflow-node workflow-node-${kind}`,
-      position: position ?? { x: 260 + (current.length % 3) * 190, y: 300 + Math.floor(current.length / 3) * 90 },
+      type: WORKFLOW_NODE_TYPE,
+      position: position ?? { x: (current.length % 4) * NODE_SPACING_X, y: 170 + Math.floor(current.length / 4) * 130 },
       data: {
         label: definition.label,
         kind: definition.kind,
@@ -330,8 +223,8 @@ export default function App() {
 
   function handleCanvasDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    const kind = event.dataTransfer.getData("application/cloudpilot-node") as WorkflowNodeType;
-    if (!nodeCatalog.some((item) => item.kind === kind) || !reactFlowInstance) return;
+    const kind = event.dataTransfer.getData("application/cloudpilot-node");
+    if (!isWorkflowNodeType(kind) || !reactFlowInstance) return;
     const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
     createNode(kind, position);
   }
@@ -393,12 +286,7 @@ export default function App() {
       return;
     }
 
-    const source = await file.text();
-    const lines = source.split(/\r?\n/);
-    const suggestions = lines
-      .map((line) => ({ line: line.trim(), kind: inferNodeType(line) }))
-      .filter((item): item is { line: string; kind: WorkflowNodeType } => item.kind !== null)
-      .slice(0, 12);
+    const suggestions = suggestNodesFromScript(await file.text());
 
     if (suggestions.length === 0) {
       setNotice("No recognizable build, test, security, deployment, or health-check commands were found. Nothing was executed.");
@@ -406,14 +294,15 @@ export default function App() {
     }
 
     const importBatchId = `import-batch-${Date.now()}`;
+    const importY = nodes.reduce((lowest, node) => Math.max(lowest, node.position.y), 0) + 170;
     const importedNodes: Node<WorkflowNodeData>[] = suggestions.map((item, index) => ({
       id: `${importBatchId}-${index}`,
-      className: `workflow-node workflow-node-${item.kind}`,
-      position: { x: 80 + index * 230, y: 330 },
+      type: WORKFLOW_NODE_TYPE,
+      position: { x: index * NODE_SPACING_X, y: importY },
       data: {
-        label: `${kindIcon[item.kind]} ${item.kind.replace("-", " ")}`,
+        label: catalogEntry(item.kind).label,
         kind: item.kind,
-        config: defaultNodeConfig(item.kind),
+        config: item.config,
         description: `Suggested from: ${item.line.slice(0, 100)}`,
         importBatchId,
       },
@@ -422,22 +311,21 @@ export default function App() {
       id: `${importBatchId}-edge-${index}`,
       source: importedNodes[index].id,
       target: node.id,
-      animated: true,
+      ...edgeDefaults,
     }));
     setNodes((current) => [...current, ...importedNodes]);
     setEdges((current) => [...current, ...importedEdges]);
-    setNotice(`Analyzed ${file.name}: suggested ${suggestions.length} nodes. The file was read as text only; it was not executed. Review every suggestion before use.`);
+    window.setTimeout(() => void reactFlowInstance?.fitView({ padding: 0.12, maxZoom: 1, duration: 300 }), 50);
+    setNotice(`Analyzed ${file.name}: suggested ${suggestions.length} nodes. The file was read as text only; it was not executed. Settings were pre-filled from the matching lines. The suggested chain is not connected yet: review every suggestion, then connect it into your workflow.`);
   }
 
   function persistSavedWorkflows(next: SavedWorkflow[]) {
-    try {
-      window.localStorage.setItem(SAVED_WORKFLOWS_KEY, JSON.stringify(next));
+    if (storeSavedWorkflows(next)) {
       setSavedWorkflows(next);
       return true;
-    } catch {
-      setNotice("Could not save this workflow in browser storage. Check available storage space or browser privacy settings.");
-      return false;
     }
+    setNotice("Could not save this workflow in browser storage. Check available storage space or browser privacy settings.");
+    return false;
   }
 
   function saveWorkflow() {
@@ -543,7 +431,7 @@ export default function App() {
 
         <section className="main-panel">
           <div className="page-heading">
-            <div><div className="eyebrow">WORKFLOW DESIGNER <span>•</span> MVP PREVIEW</div><h1>Build your deployment flow</h1><p>Describe it, shape it visually, then validate before running.</p><div className="workflow-name-control"><label htmlFor="workflow-name">Workflow name</label><input id="workflow-name" maxLength={120} value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} /></div></div>
+            <div><div className="eyebrow">WORKFLOW DESIGNER <span>•</span> MVP PREVIEW</div><h1>Build your deployment flow</h1><p>Describe it, shape it visually, then validate before running.</p><div className="workflow-name-control"><label htmlFor="workflow-name">Workflow name</label><input id="workflow-name" maxLength={MAX_WORKFLOW_NAME_LENGTH} value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} /></div></div>
           </div>
 
           <form className="prompt-panel" onSubmit={(event) => { event.preventDefault(); applyPrompt(); }}>
@@ -552,18 +440,45 @@ export default function App() {
             <button className="button button-primary prompt-submit" type="submit">Draft flow <ArrowRight size={15} /></button>
           </form>
 
-          <div className="canvas-toolbar"><div className="canvas-title"><GitBranch size={16} /><b>Deployment pipeline</b><span className="version-pill">v{workflowVersion}</span><span className="connect-hint">Connect: drag between dots · Remove: click a line, then press Delete or use the button</span></div><div className="canvas-toolbar-actions"><button type="button" className="button button-primary button-compact" onClick={saveWorkflow}>Save workflow</button><select className="saved-version-select" aria-label="Saved workflow versions" value={selectedSavedVersion} onChange={(event) => setSelectedSavedVersion(event.target.value)}><option value="">Open saved version…</option>{savedWorkflows.flatMap((workflow) => workflow.versions.map((version) => ({ key: `${workflow.id}:${version.version}`, label: `${workflow.name} · v${version.version} · ${new Date(version.savedAt).toLocaleString()}` }))).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select><button type="button" className="button button-secondary button-compact" onClick={openSavedWorkflow} disabled={!selectedSavedVersion}>Open</button><button type="button" className="button button-secondary button-compact" onClick={startNewWorkflow}>New</button><button type="button" className="button button-secondary button-compact" onClick={undoWorkflowChange} disabled={!canUndo} title="Undo the last workflow change">Undo</button><button type="button" className="button button-secondary button-compact" onClick={redoWorkflowChange} disabled={!canRedo} title="Redo the last undone change">Redo</button>{selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId) && <button className="button button-danger button-compact" onClick={() => deleteConnection(selectedEdgeId)}><Trash2 size={13} /> Delete connection</button>}{nodes.some((node) => node.data.importBatchId) && <button className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove imported nodes</button>}{nodes.length > 0 && <button className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear workflow</button>}<span className="canvas-meta">{nodes.length} nodes <span>·</span> {edges.length} connections</span></div></div>
+          <div className="canvas-toolbar">
+            <div className="canvas-title">
+              <GitBranch size={16} />
+              <b>Deployment pipeline</b>
+              <span className="version-pill">v{workflowVersion}</span>
+              <span className="canvas-meta">{nodes.length} nodes · {edges.length} connections</span>
+              <button type="button" className="canvas-help" aria-label="How to edit the canvas" data-tip="Connect: drag from a node's right dot to another node's left dot. Remove: select a node or line, then press Delete."><CircleHelp size={15} /></button>
+            </div>
+            <div className="canvas-toolbar-actions">
+              {selectedEdgeId && edges.some((edge) => edge.id === selectedEdgeId) && <button type="button" className="button button-danger button-compact" onClick={() => deleteConnection(selectedEdgeId)}><Trash2 size={13} /> Delete connection</button>}
+              {nodes.some((node) => node.data.importBatchId) && <button type="button" className="button button-secondary button-compact" onClick={removeImportedNodes}><Trash2 size={13} /> Remove suggested</button>}
+              <div className="toolbar-group">
+                <button type="button" className="button button-secondary button-icon" onClick={undoWorkflowChange} disabled={!canUndo} title="Undo" aria-label="Undo"><Undo2 size={15} /></button>
+                <button type="button" className="button button-secondary button-icon" onClick={redoWorkflowChange} disabled={!canRedo} title="Redo" aria-label="Redo"><Redo2 size={15} /></button>
+              </div>
+              <div className="toolbar-group">
+                <select className="saved-version-select" aria-label="Saved workflow versions" value={selectedSavedVersion} onChange={(event) => setSelectedSavedVersion(event.target.value)}><option value="">Saved versions…</option>{savedWorkflows.flatMap((workflow) => workflow.versions.map((version) => ({ key: `${workflow.id}:${version.version}`, label: `${workflow.name} · v${version.version} · ${new Date(version.savedAt).toLocaleString()}` }))).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select>
+                <button type="button" className="button button-secondary button-compact" onClick={openSavedWorkflow} disabled={!selectedSavedVersion}>Open</button>
+              </div>
+              <div className="toolbar-group">
+                <button type="button" className="button button-secondary button-compact" onClick={startNewWorkflow}>New</button>
+                {nodes.length > 0 && <button type="button" className="button button-secondary button-compact" onClick={clearWorkflow}><X size={13} /> Clear</button>}
+              </div>
+              <button type="button" className="button button-primary button-compact" onClick={saveWorkflow}>Save workflow</button>
+            </div>
+          </div>
           <div className="flow-canvas" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
-            <ReactFlow<Node<WorkflowNodeData>, Edge> onInit={setReactFlowInstance} nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} isConnectable={true} connectionLineType={ConnectionLineType.SmoothStep} connectionLineStyle={{ stroke: "#6978ed", strokeWidth: 2.5 }} defaultEdgeOptions={{ type: "smoothstep", animated: true, markerEnd: { type: MarkerType.ArrowClosed, color: "#6978ed" }, style: { stroke: "#8793d8", strokeWidth: 2 } }} onNodeClick={(_, node) => { setSelectedNode(node as Node<WorkflowNodeData>); setSelectedEdgeId(null); }} onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNode(null); }} onPaneClick={() => { setSelectedNode(null); setSelectedEdgeId(null); }} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.18 }} minZoom={0.2} maxZoom={1.5}>
+            <NodeIssuesContext.Provider value={issuesByNode}>
+            <ReactFlow<Node<WorkflowNodeData>, Edge> onInit={setReactFlowInstance} nodeTypes={nodeTypes} nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} connectionLineType={ConnectionLineType.SmoothStep} connectionLineStyle={{ stroke: "#6978ed", strokeWidth: 2.5 }} defaultEdgeOptions={edgeDefaults} onNodeClick={(_, node) => { setSelectedNode(node as Node<WorkflowNodeData>); setSelectedEdgeId(null); }} onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNode(null); }} onPaneClick={() => { setSelectedNode(null); setSelectedEdgeId(null); }} deleteKeyCode={["Backspace", "Delete"]} fitView fitViewOptions={{ padding: 0.12, maxZoom: 1 }} minZoom={0.2} maxZoom={1.5}>
               <Background gap={20} size={1} color="#dfe5ee" />
               <Controls position="bottom-left" />
-              <MiniMap position="bottom-right" pannable zoomable nodeStrokeWidth={3} />
+              <MiniMap<WorkflowCanvasNode> position="bottom-right" pannable zoomable style={{ width: 150, height: 96 }} nodeColor={(node) => nodeAccent[node.data.kind]} nodeStrokeWidth={0} nodeBorderRadius={8} maskColor="rgba(232, 236, 246, 0.6)" />
             </ReactFlow>
-            {selectedNode && <div className="node-inspector"><button className="inspector-close" onClick={() => setSelectedNode(null)} aria-label="Close node inspector"><X size={15} /></button><div className="eyebrow">NODE SETTINGS</div><h3>{selectedNode.data.label}</h3><p>{selectedNode.data.description}</p><label htmlFor="node-label">Display name</label><input id="node-label" value={selectedNode.data.label} onChange={(event) => { const label = event.target.value; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, label } } : current); }} /><div className="settings-divider" /><div className="settings-section-title">NODE CONFIGURATION</div>{nodeSettings[selectedNode.data.kind].map((field) => <div className="setting-field" key={field.key}><label htmlFor={`setting-${selectedNode.id}-${field.key}`}>{field.label}</label><small>{field.description}</small>{field.input === "checkbox" ? <label className="setting-checkbox"><input id={`setting-${selectedNode.id}-${field.key}`} type="checkbox" checked={Boolean(selectedNode.data.config[field.key])} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.checked }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }} /> Enabled</label> : field.input === "select" ? <select id={`setting-${selectedNode.id}-${field.key}`} value={String(selectedNode.data.config[field.key] ?? "")} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.value }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.input === "textarea" ? <textarea id={`setting-${selectedNode.id}-${field.key}`} rows={3} value={String(selectedNode.data.config[field.key] ?? "")} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.value }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }} /> : <input id={`setting-${selectedNode.id}-${field.key}`} value={String(selectedNode.data.config[field.key] ?? "")} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.value }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }} />}</div>)}<button className="button button-danger delete-node-button" onClick={() => deleteNode(selectedNode.id)}><Trash2 size={14} /> Delete node</button></div>}
+            </NodeIssuesContext.Provider>
+            {selectedNode && <div className="node-inspector"><button className="inspector-close" onClick={() => setSelectedNode(null)} aria-label="Close node inspector"><X size={15} /></button><div className="eyebrow">NODE SETTINGS</div><h3>{selectedNode.data.label}</h3><p>{selectedNode.data.description}</p><label htmlFor="node-label">Display name</label><input id="node-label" maxLength={MAX_NODE_LABEL_LENGTH} value={selectedNode.data.label} onChange={(event) => { const label = event.target.value; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, label } } : current); }} /><div className="settings-divider" /><div className="settings-section-title">NODE CONFIGURATION</div>{nodeSettings[selectedNode.data.kind].map((field) => <div className="setting-field" key={field.key}><label htmlFor={`setting-${selectedNode.id}-${field.key}`}>{field.label}</label><small>{field.description}</small>{field.input === "checkbox" ? <label className="setting-checkbox"><input id={`setting-${selectedNode.id}-${field.key}`} type="checkbox" checked={Boolean(selectedNode.data.config[field.key])} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.checked }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }} /> Enabled</label> : field.input === "select" ? <select id={`setting-${selectedNode.id}-${field.key}`} value={String(selectedNode.data.config[field.key] ?? "")} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.value }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.input === "textarea" ? <textarea id={`setting-${selectedNode.id}-${field.key}`} rows={3} value={String(selectedNode.data.config[field.key] ?? "")} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.value }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }} /> : <input id={`setting-${selectedNode.id}-${field.key}`} value={String(selectedNode.data.config[field.key] ?? "")} onChange={(event) => { const config = { ...selectedNode.data.config, [field.key]: event.target.value }; setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config } } : node)); setSelectedNode((current) => current ? { ...current, data: { ...current.data, config } } : current); }} />}</div>)}<button className="button button-danger delete-node-button" onClick={() => deleteNode(selectedNode.id)}><Trash2 size={14} /> Delete node</button></div>}
           </div>
 
           <div className="bottom-panels">
-            <section className="status-panel"><div className="panel-heading"><Activity size={16} /><b>Activity & validation</b><span className={graphErrors.length ? "issue-count" : "success-count"}>{graphErrors.length ? `${graphErrors.length} issues` : "No issues"}</span></div>{graphErrors.length ? graphErrors.map((error) => <p className="validation-error" key={error}>{error}</p>) : <p className="status-message"><CheckCircle2 size={15} /> {notice}</p>}</section>
+            <section className="status-panel"><div className="panel-heading"><Activity size={16} /><b>Activity & validation</b><span className={graphErrors.length ? "issue-count" : "success-count"}>{graphErrors.length ? `${graphErrors.length} issues` : "No issues"}</span></div><p className="status-message"><CheckCircle2 size={15} /> {notice}</p>{graphErrors.map((error) => <p className="validation-error" key={error}>{error}</p>)}</section>
             <section className="run-panel"><div className="panel-heading"><Play size={15} /><b>Execution</b><span className="mock-pill">MOCK ONLY</span></div><p>{graphErrors.length ? "Fix the validation issues before Run mock becomes available. Saving drafts is still allowed." : "Workflow passed validation. Run mock checks the graph only; it does not run shell commands or provision infrastructure."} Saved versions stay in this browser on this device.</p></section>
           </div>
           <footer className="footer-note">CloudPilot AI <span>•</span> Early MVP prototype <span>•</span> Real deployment is disabled</footer>
